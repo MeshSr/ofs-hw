@@ -61,6 +61,8 @@ Run the following commands in the `of13softswitch` directory to build and instal
 
     $ ./boot.sh
     $ ./configure
+or if you want to cross compile
+./configure --build=i686-pc-linux --host=arm-xilinx-linux-gnueabi --target=i686-linux LIBS=" -lnbee -lnbprotodb -lnbnetvm -lnbpflcompiler -lnbsockutils -lpcap -lpcre -lxerces-c -licuuc -licudata -lpthread -L./runlib"
     $ make
     $ sudo make install
 

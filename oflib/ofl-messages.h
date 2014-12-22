@@ -79,6 +79,85 @@ struct ofl_msg_echo {
 };
 
 
+//htl
+#pragma pack(1)
+typedef struct nf2_entry {
+	uint16_t transp_dst;  //tcp/udp port
+	uint16_t transp_src;  //tcp/udp port
+	uint8_t ip_proto;
+	uint32_t ip_dst;
+	uint32_t ip_src;
+	uint16_t eth_type;
+	uint8_t eth_dst[6];
+	uint8_t eth_src[6];
+	uint32_t src_port;  //ingress port
+	uint8_t ip_tos;
+   uint32_t metadata[2];
+	uint16_t vlan_id;
+   uint8_t mpls_low; /*mpls label use higher 4 bits and the following 16 bits*/
+   uint16_t mpls_high;
+   uint8_t pad[3];
+}nf2_entry;
+
+typedef union nf2_entry_wrap {
+	struct nf2_entry nfentry;
+	uint32_t raw[8];
+} nf2_entry_wrap;
+
+
+typedef struct nf2_mask {
+	uint16_t tran_dst;  //tcp/udp port
+	uint16_t tran_src;  //tcp/udp port
+	uint8_t ip_pro;
+	uint32_t ip_dst1;
+	uint32_t ip_src1;
+	uint16_t eth_type1;
+	uint8_t eth_d[6];
+	uint8_t eth_s[6];
+	uint32_t src_port1;  //ingress port
+	uint8_t ip_tos1;
+   uint32_t meta[2];
+	uint16_t vlan_id1;
+   uint8_t mpls_low1; /*mpls label use higher 4 bits and the following 16 bits*/
+   uint16_t mpls_high1;
+   uint8_t pad1[3];
+}nf2_mask;
+
+typedef union nf2_mask_wrap {
+	struct nf2_mask nfmask;
+	uint32_t raw[8];
+} nf2_mask_wrap;
+
+
+typedef struct nf2_action {
+	   uint16_t forward_bitmask;
+		uint16_t nf2_action_flag_low;
+	   uint8_t nf2_action_flag_high;  /*not used, reserved to extend actions*/
+		uint16_t vlan_id_pcp; /*pcp use higher 3 bits, vlan id use lower 12bits*/
+		uint8_t eth_src[6];
+		uint8_t eth_dst[6];
+		uint32_t ip_src;
+		uint32_t ip_dst;
+		uint8_t ip_tos_ecn;/*ecn user higher 2 bits,tos use lower 6 bits*/
+	   uint8_t ip_ttl;
+		uint8_t mpls_ttl;
+	   uint8_t mpls_low; /*mpls label use higher 4 bits and the following 16 bits*/
+	   uint16_t mpls_high;
+		uint16_t transp_src;
+		uint16_t transp_dst;
+	   uint32_t queue_id;
+	   uint8_t table_id;
+	   uint32_t group_id;
+	   uint8_t inst_flag;
+	   uint32_t metadata[2];
+		uint8_t reserved[18];
+}nf2_action;
+
+typedef union nf2_action_wrap {
+	struct nf2_action nfaction;
+	uint32_t raw[10];
+} nf2_action_wrap;
+#pragma pack()
 
 /********************
  * Symmetric message
@@ -292,6 +371,15 @@ struct ofl_msg_multipart_request_flow {
     struct ofl_match_header  *match;       /* Fields to match. */
 };
 
+struct ofl_msg_multipart_request_flow0{
+    struct ofl_msg_multipart_request_header   header; /* OFPMP_FLOW/AGGREGATE */
+    uint8_t row;
+
+};
+struct ofl_msg_multipart_request_flow1{
+    struct ofl_msg_multipart_request_header   header; /* OFPMP_FLOW/AGGREGATE */
+    uint8_t row;
+};
 struct ofl_msg_multipart_request_port {
     struct ofl_msg_multipart_request_header   header; /* OFPMP_PORT_STATS */
     uint32_t   port_no; /* OFPMP_PORT_STATS message must request statistics
@@ -318,6 +406,11 @@ struct ofl_msg_multipart_request_table_features{
 };
 
 struct ofl_msg_multipart_meter_request {
+    struct ofl_msg_multipart_request_header   header; /* OFPMP_METER */
+    
+    uint32_t meter_id; /* Meter instance, or OFPM_ALL. */
+};
+struct ofl_msg_multipart_hw_meter_request {
     struct ofl_msg_multipart_request_header   header; /* OFPMP_METER */
     
     uint32_t meter_id; /* Meter instance, or OFPM_ALL. */

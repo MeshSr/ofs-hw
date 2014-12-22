@@ -952,6 +952,8 @@ enum ofp_multipart_types {
     * The request and reply bodies begin with
     * struct ofp_experimenter_stats_header.
     * The request and reply bodies are otherwise experimenter-defined. */
+    OFPMP_FLOW_HW0=14,
+    OFPMP_FLOW_HW1=15,
     OFPMP_EXPERIMENTER = 0xffff
 };
 

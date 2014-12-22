@@ -41,15 +41,18 @@
 #include "ofl-log.h"
 #include "oxm-match.h"
 #include "openflow/openflow.h"
-
+#include "hw_table_define.h"
+#include "ofl-messages.h"
 #define LOG_MODULE ofl_str_u
 OFL_LOG_INIT(LOG_MODULE)
-
+extern nf2_of_action_wrap flow_action_t0;
+extern nf2_of_action_wrap flow_action_t1;
+extern table_id;
+uint32_t meter=0;
 ofl_err
 ofl_structs_instructions_unpack(struct ofp_instruction *src, size_t *len, struct ofl_instruction_header **dst, struct ofl_exp *exp) {
     size_t ilen;
     struct ofl_instruction_header *inst = NULL;
-
     if (*len < sizeof(struct ofp_instruction)) {
         OFL_LOG_WARN(LOG_MODULE, "Received instruction is too short (%zu).", *len);
         return ofl_error(OFPET_BAD_ACTION, OFPBAC_BAD_LEN);
@@ -85,7 +88,17 @@ ofl_structs_instructions_unpack(struct ofp_instruction *src, size_t *len, struct
             di = (struct ofl_instruction_goto_table *)malloc(sizeof(struct ofl_instruction_goto_table));
 
             di->table_id = si->table_id;
-
+            /*patch by meshsr*/
+	    //hw_table identified by extern table_id.
+	    if(table_id==0)
+		    flow_action_t0.action.next_table_id=si->table_id;
+	    else if(table_id==1)
+		    flow_action_t1.action.next_table_id=si->table_id;	    
+	    //hw_table_forward_bitmask.
+            if(table_id==0)
+	    flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x1000;
+            if(table_id==1)
+	    flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x1000;
             inst = (struct ofl_instruction_header *)di;
             ilen -= sizeof(struct ofp_instruction_goto_table);
             break;
@@ -174,7 +187,18 @@ ofl_structs_instructions_unpack(struct ofp_instruction *src, size_t *len, struct
             di = (struct ofl_instruction_meter *)malloc(sizeof(struct ofl_instruction_meter));
 
             di->meter_id = ntohl(si->meter_id);
-
+            meter=di->meter_id;
+	    //hw_table meter.
+	    if(table_id==0)
+		    flow_action_t0.action.meter_id=di->meter_id;
+	    else if(table_id==1)
+		    flow_action_t1.action.meter_id=di->meter_id;
+	    //end.
+	    //hw_table_forward_bitmask.
+            if(table_id==0)
+	    flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0800;
+            if(table_id==1)
+	    flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0800;
             inst = (struct ofl_instruction_header *)di;
             ilen -= sizeof(struct ofp_instruction_meter);
             break; 
@@ -1088,6 +1112,11 @@ ofl_structs_bucket_counter_unpack(struct ofp_bucket_counter *src, size_t *len, s
     return 0;
 }
 
+/*patch by meshsr*/
+extern iNum;
+extern iDeno;
+uint16_t temprate;
+unsigned int tmprate=0;
 ofl_err
 ofl_structs_meter_band_unpack(struct ofp_meter_band_header *src, size_t *len, struct ofl_meter_band_header **dst){
 	struct ofl_meter_band_header *mb;
@@ -1101,6 +1130,28 @@ ofl_structs_meter_band_unpack(struct ofp_meter_band_header *src, size_t *len, st
 			struct ofl_meter_band_drop *b = (struct ofl_meter_band_drop *)malloc(sizeof(struct ofl_meter_band_drop));
 			b->type = ntohs(src->type);
 			b->rate = ntohl(src->rate);
+            uint32_t temprate=b->rate;                       
+			tmprate=temprate;
+			printf("tmprate=%d",tmprate);
+            int iMod,iMin;
+            iNum=temprate;
+            iDeno=1000000;
+            if (iNum<iDeno)
+               iMin=iNum;
+            else
+            iMin=iDeno;
+            int i;
+            for (i=2;i<=iMin;i++)
+            {
+                if (i>iNum || i>iDeno)
+                break;
+                if (iNum%i==0 && iDeno%i==0)
+                {
+                    iNum/=i;
+                    iDeno/=i;
+                    i=1;
+                }
+            }
 			b->burst_size = ntohl(src->burst_size);
 			mb = (struct ofl_meter_band_header *)b;
 			*dst = mb;

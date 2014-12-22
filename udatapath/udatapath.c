@@ -96,6 +96,17 @@ static bool use_multiple_connections = false;
 int
 main(int argc, char *argv[])
 {
+    //htl add 2014-04-
+    int t= add_entry_output(1);
+    int m=0; 
+    m=add_entry_table(12);
+    m=add_entry_table(13);
+    m=add_entry_table(14);
+    m=add_entry_table(7);
+    m=add_entry_table(8);
+    m=add_entry_table(9);
+    m=add_entry_table(10);
+    m=add_entry_table(11);
     return udatapath_cmd(argc, argv);
     
 }

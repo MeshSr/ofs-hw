@@ -27,9 +27,24 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
+#include <config.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <getopt.h>
+#include <inttypes.h>
+#include <netinet/in.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <ctype.h>
 #include <netinet/in.h>
 #include <endian.h>
 #include "ofl-actions.h"
@@ -39,6 +54,8 @@
 #include "ofl-print.h"
 #include "ofl-log.h"
 #include "openflow/openflow.h"
+#include "../utilities/dpctl.h"
+#include "hw_table_define.h" 
 
 #define UNUSED __attribute__((__unused__))
 
@@ -48,6 +65,72 @@ OFL_LOG_INIT(LOG_MODULE)
 /****************************************************************************
  * Functions for unpacking ofp wire format to ofl structures.
  ****************************************************************************/
+void rdg(unsigned reg, unsigned *val)
+{
+	int fd;
+	int i, linenum, count=0;
+	unsigned char * map_base;
+	unsigned long PHYADDR;
+	unsigned char val_str[4];
+	/* get pagesize on the specific device */
+	int  pagesize = getpagesize();
+
+	/* turn a strig into a unsigned long integer */
+	PHYADDR = reg;
+	//printf("PHYADDR = 0x%08x\n", PHYADDR);
+    int	length = 1;
+
+	/* open a descriptor to /dev/mem */
+	fd = open("/dev/mem", O_RDWR|O_SYNC);
+	if(fd == -1)  
+	{  
+		printf("open /dev/mem failed\n");
+		return -1;  
+	}
+
+	/* mmap() maps the physical address into virtual address, including IO and hardware registers
+	 * the start address is NULL, so kernel will locate it at any possible place.
+	 * with read and write permission
+	 * the offset is aligned with a memory page
+	 */
+	map_base = mmap(NULL, pagesize, PROT_READ|PROT_WRITE, MAP_SHARED, fd, PHYADDR & 0xfffff000);
+	if(map_base == MAP_FAILED) {
+		perror("mmap");
+	};/*
+	     else
+	     printf("map_base = 0x%08X\n", map_base);
+	     printf("\n");*/
+
+	/* get the within-page offset */
+	int pgoffset = PHYADDR & 0x00000fff;
+	/* print 4 registers in a line */
+	while(length>4) {
+		linenum=4;
+		length-=4;
+		// by htl printf("%08X: ", (PHYADDR + count));
+		for(i=0;i<4*linenum;i=i+4) {
+			printf("%02X%02X%02X%02X    ",  (unsigned int)map_base[pgoffset + count + i+3],
+					(unsigned int)map_base[pgoffset + count + i+2],
+					(unsigned int)map_base[pgoffset + count + i+1],
+					(unsigned int)map_base[pgoffset + count + i]
+			      );
+		}
+		count+=16;
+	}
+	//printf("%08X: ", (PHYADDR + count));
+	for(i=0;i<4*length;i=i+4) {
+		sprintf(val_str, "%02X%02X%02X%02X    ",  (unsigned int)map_base[pgoffset + count + i+3],
+				(unsigned int)map_base[pgoffset + count + i+2],
+				(unsigned int)map_base[pgoffset + count + i+1],
+				(unsigned int)map_base[pgoffset + count + i]
+		       );
+		*val = strtoul(val_str,NULL,16);
+	}
+	/* close file descriptor */
+	close(fd);
+	/* release map */
+	munmap(map_base, pagesize);
+}
 
 
 static ofl_err
@@ -421,73 +504,110 @@ ofl_msg_unpack_packet_out(struct ofp_header *src, size_t *len, struct ofl_msg_he
     return 0;
 }
 
+/*patch by meshsr*/
+nf2_of_entry_wrap_t0 flow_entry_t0;
+nf2_of_entry_wrap_t1 flow_entry_t1;
+nf2_of_mask_wrap_t0 flow_mask_t0;
+nf2_of_mask_wrap_t1 flow_mask_t1;
+nf2_of_action_wrap flow_action_t0;
+nf2_of_action_wrap flow_action_t1;
+extern  meter;
+uint8_t table_id;
 
 static ofl_err
 ofl_msg_unpack_flow_mod(struct ofp_header *src,uint8_t* buf, size_t *len, struct ofl_msg_header **msg, struct ofl_exp *exp) {
-    struct ofp_flow_mod *sm;
-    struct ofl_msg_flow_mod *dm;
-    struct ofp_instruction *inst;
-    ofl_err error;
-    size_t i;
-    int match_pos;
-    
-    if (*len < (sizeof(struct ofp_flow_mod) - sizeof(struct ofp_match))) {
-        OFL_LOG_WARN(LOG_MODULE, "Received FLOW_MOD message has invalid length (%zu).", *len);
-        return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_LEN);
-    }
+	struct ofp_flow_mod *sm;
+	struct ofl_msg_flow_mod *dm;
+	struct ofp_instruction *inst;
+	ofl_err error;
+	size_t i;
+	int match_pos;
+	int h=0; int t=0; int l=0;int j=0;int p=0;
+	
+	/*inital hw_table*/
+	memset(&flow_entry_t0, 0, sizeof(nf2_of_entry_wrap_t0));
+	for(j=0;j<2;j++)
+	{
+		flow_mask_t0.raw[j]=0xffffffff;
+	} 
+	memset(&flow_action_t0, 0, sizeof(nf2_of_action_wrap));
 
-    *len -= (sizeof(struct ofp_flow_mod) - sizeof(struct ofp_match));
+	memset(&flow_entry_t1, 0, sizeof(nf2_of_entry_wrap_t1));
+	for(j=0;j<3;j++)
+	{
+		flow_mask_t1.raw[j]=0xffffffff;
+	} 
+	memset(&flow_action_t1, 0, sizeof(nf2_of_action_wrap));
+	flow_action_t1.action.forward_bitmask =0;
 
-    sm = (struct ofp_flow_mod *)src;
-    dm = (struct ofl_msg_flow_mod *)malloc(sizeof(struct ofl_msg_flow_mod));
+	if (*len < (sizeof(struct ofp_flow_mod) - sizeof(struct ofp_match))) {
+		OFL_LOG_WARN(LOG_MODULE, "Received FLOW_MOD message has invalid length (%zu).", *len);
+		return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_LEN);
+	}
 
-    if (sm->table_id >= PIPELINE_TABLES && ((sm->command != OFPFC_DELETE
-    || sm->command != OFPFC_DELETE_STRICT) && sm->table_id != OFPTT_ALL)) {
-        OFL_LOG_WARN(LOG_MODULE, "Received FLOW_MOD message has invalid table id (%zu).", sm->table_id );
-        return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_TABLE_ID);
-    } 
+	*len -= (sizeof(struct ofp_flow_mod) - sizeof(struct ofp_match));
 
-    dm->cookie =       ntoh64(sm->cookie);
-    dm->cookie_mask =  ntoh64(sm->cookie_mask);
-    dm->table_id =            sm->table_id;
-    dm->command =             (enum ofp_flow_mod_command)sm->command;
-    dm->idle_timeout = ntohs( sm->idle_timeout);
-    dm->hard_timeout = ntohs( sm->hard_timeout);
-    dm->priority =     ntohs( sm->priority);
-    dm->buffer_id =    ntohl( sm->buffer_id);
-    dm->out_port =     ntohl( sm->out_port);
-    dm->out_group =    ntohl( sm->out_group);
-    dm->flags =        ntohs( sm->flags);
-    
-    match_pos = sizeof(struct ofp_flow_mod) - 4;
-    error = ofl_structs_match_unpack(&(sm->match), buf + match_pos, len, &(dm->match), exp);
-    if (error) {
-        free(dm);
-        return error;
+	sm = (struct ofp_flow_mod *)src;
+	dm = (struct ofl_msg_flow_mod *)malloc(sizeof(struct ofl_msg_flow_mod));
+
+	if (sm->table_id >= PIPELINE_TABLES && ((sm->command != OFPFC_DELETE
+					|| sm->command != OFPFC_DELETE_STRICT) && sm->table_id != OFPTT_ALL)) {
+		OFL_LOG_WARN(LOG_MODULE, "Received FLOW_MOD message has invalid table id (%zu).", sm->table_id );
+		return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_TABLE_ID);
+	} 
+
+	dm->cookie = ntoh64(sm->cookie);
+	dm->cookie_mask = ntoh64(sm->cookie_mask);
+	dm->table_id = sm->table_id;
+	dm->command = (enum ofp_flow_mod_command)sm->command;
+	dm->idle_timeout = ntohs( sm->idle_timeout);
+	dm->hard_timeout = ntohs( sm->hard_timeout);
+	dm->priority = ntohs( sm->priority);
+	dm->buffer_id = ntohl( sm->buffer_id);
+	dm->out_port = ntohl( sm->out_port);
+	dm->out_group = ntohl( sm->out_group);
+	dm->flags = ntohs( sm->flags);
+	int row = dm->priority;
+	table_id = dm->table_id;
+	match_pos = sizeof(struct ofp_flow_mod) - 4;
+	error = ofl_structs_match_unpack(&(sm->match), buf + match_pos, len, &(dm->match), exp);
+	if (error) {
+		free(dm);
+		return error;
+	}
+
+	error = ofl_utils_count_ofp_instructions((struct ofp_instruction *)(buf + ROUND_UP(match_pos + dm->match->length,8)), *len, &dm->instructions_num);
+	if (error) {
+		ofl_structs_free_match(dm->match, exp);
+		free(dm);
+		return error;
+	}
+
+	dm->instructions = (struct ofl_instruction_header **)malloc(dm->instructions_num * sizeof(struct ofl_instruction_header *));
+	inst = (struct ofp_instruction *) (buf + ROUND_UP(match_pos + dm->match->length,8));
+	for (i = 0; i < dm->instructions_num; i++) {
+		error = ofl_structs_instructions_unpack(inst, len, &(dm->instructions[i]), exp);
+		if (error) {
+			OFL_UTILS_FREE_ARR_FUN2(dm->instructions, i,
+					ofl_structs_free_instruction, exp);
+			ofl_structs_free_match(dm->match, exp);
+			free(dm);
+			return error;
+		}
+		inst = (struct ofp_instruction *)((uint8_t *)inst + ntohs(inst->len));
+	}
+	*msg = (struct ofl_msg_header *)dm;
+	/*patch by meshsr*/
+	if((dm->command==OFPFC_DELETE)||(dm->command==OFPFC_DELETE_STRICT)){
+	    printf("delete!\n");
+ 	    printf("prio:%d\n",row);
+        int h = del_entry(table_id,row);
+        return 0;
     }
-    
-    error = ofl_utils_count_ofp_instructions((struct ofp_instruction *)(buf + ROUND_UP(match_pos + dm->match->length,8)), *len, &dm->instructions_num);
-    if (error) {
-        ofl_structs_free_match(dm->match, exp);
-        free(dm);
-        return error;
-    }
-        
-    dm->instructions = (struct ofl_instruction_header **)malloc(dm->instructions_num * sizeof(struct ofl_instruction_header *));
-    inst = (struct ofp_instruction *) (buf + ROUND_UP(match_pos + dm->match->length,8));
-    for (i = 0; i < dm->instructions_num; i++) {
-        error = ofl_structs_instructions_unpack(inst, len, &(dm->instructions[i]), exp);
-        if (error) {
-            OFL_UTILS_FREE_ARR_FUN2(dm->instructions, i,
-                    ofl_structs_free_instruction, exp);
-            ofl_structs_free_match(dm->match, exp);
-            free(dm);
-            return error;
-        }
-        inst = (struct ofp_instruction *)((uint8_t *)inst + ntohs(inst->len));
-    }
-    *msg = (struct ofl_msg_header *)dm;
-    return 0;
+	printf("add!\n");
+ 	printf("prio:%d\n",row);
+	int r = add_entry(table_id,row);
+	return 0;
 }
 
 static ofl_err
@@ -567,7 +687,12 @@ ofl_msg_unpack_group_mod(struct ofp_header *src, size_t *len, struct ofl_msg_hea
     *msg = (struct ofl_msg_header *)dm;
     return 0;
 }
-
+/*patch by meshsr*/
+int iNum=0;
+int iDeno=0;
+uint8_t meter1=0;
+extern temprate;
+extern tmprate;
 static ofl_err
 ofl_msg_unpack_meter_mod(struct ofp_header *src, size_t *len, struct ofl_msg_header **msg) {
    struct ofp_meter_mod *sm;
@@ -575,6 +700,7 @@ ofl_msg_unpack_meter_mod(struct ofp_header *src, size_t *len, struct ofl_msg_hea
     struct ofp_meter_band_header *band;
     ofl_err error;
     size_t i;
+    uint16_t temprate1=temprate;
     if (*len < sizeof(struct ofp_meter_mod)) {
         OFL_LOG_WARN(LOG_MODULE, "Received METER_MOD message has invalid length (%zu).", *len);
         return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_LEN);
@@ -604,7 +730,7 @@ ofl_msg_unpack_meter_mod(struct ofp_header *src, size_t *len, struct ofl_msg_hea
     dm->command = ntohs(sm->command);
     dm->flags = ntohs(sm->flags);
     dm->meter_id = ntohl(sm->meter_id);
-
+    meter1 = ((dm->meter_id)&0x000000ff);
     error = ofl_utils_count_ofp_meter_bands(&(sm->bands), *len, &dm->meter_bands_num);
     if (error) {
         free(dm);
@@ -624,7 +750,11 @@ ofl_msg_unpack_meter_mod(struct ofp_header *src, size_t *len, struct ofl_msg_hea
         }
         band = (struct ofp_meter_band_header *)((uint8_t *)band + ntohs(band->len));
     }
-
+    if((dm->command==OFPMC_DELETE))
+    {
+		clear_meter(meter1);
+    }
+    int m =add_meter(meter1,tmprate);
     *msg = (struct ofl_msg_header *)dm;
     return 0;
 }
@@ -1111,8 +1241,13 @@ ofl_msg_unpack_multipart_reply_port(struct ofp_multipart_reply *os, size_t *len,
         }
         stat = (struct ofp_port_stats *)((uint8_t *)stat + sizeof(struct ofp_port_stats));
     }
-
+    uint32_t readbytes=0;
+    rdg(0x48680030,&readbytes);
+  (*(dm->stats))->tx_bytes =(uint64_t)readbytes;
+    printf ("bytes:%d\n",readbytes);
+    printf("tx_bytes changed!\n");
     *msg = (struct ofl_msg_header *)dm;
+    printf("end change!\n");
     return 0;
 }
 
