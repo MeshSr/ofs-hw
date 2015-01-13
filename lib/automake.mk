@@ -100,8 +100,9 @@ lib_libopenflow_a_LIBADD = oflib/ofl-actions.o \
                            oflib/ofl-messages-pack.o \
                            oflib/ofl-messages-print.o \
                            oflib/ofl-messages-unpack.o \
+                           oflib/add_entry.o \
                            oflib/ofl-structs.o \
-			               oflib/ofl-structs-match.o \
+                           oflib/ofl-structs-match.o \
                            oflib/ofl-structs-pack.o \
                            oflib/ofl-structs-print.o \
                            oflib/ofl-structs-unpack.o \

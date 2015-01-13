@@ -23,9 +23,9 @@ oflib_liboflib_a_SOURCES = \
 	oflib/ofl-structs-print.c \
 	oflib/ofl-structs-unpack.c \
 	oflib/ofl-utils.h \
-        oflib/add_entry.c \
-        oflib/hw_table_define.h \
-        oflib/reg_defines_openflow_switch.h
+	oflib/add_entry.c \
+	oflib/hw_table_define.h \
+	oflib/reg_defines_openflow_switch.h
 
 AM_CPPFLAGS += -DOFL_LOG_VLOG
 
