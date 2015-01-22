@@ -48,18 +48,15 @@
 OFL_LOG_INIT(LOG_MODULE)
 
 extern nf2_of_action_wrap flow_action_t0;
-extern nf2_of_action_wrap flow_action_t1;
 extern table_id;
-extern nf2_action_wrap naction;
 extern meter;
+
 ofl_err
 ofl_actions_unpack(struct ofp_action_header *src, size_t *len, struct ofl_action_header **dst, struct ofl_exp *exp) {
     /*patch by meshsr*/	
-    int i=0;    
-    for(i=0;i<6;i++)
-    {
-        flow_action_t0.action.reserved[i]=0;
-        flow_action_t1.action.reserved[i]=0;
+    int i = 0;    
+    for (i = 0; i < 6; i++) {
+        flow_action_t0.action.reserved[i] = 0;
     } 
     if (*len < sizeof(struct ofp_action_header)) {
         OFL_LOG_WARN(LOG_MODULE, "Received action is too short (%zu).", *len);
@@ -103,20 +100,10 @@ ofl_actions_unpack(struct ofp_action_header *src, size_t *len, struct ofl_action
 	        da->port = ntohl(sa->port);
 	        da->max_len = ntohs(sa->max_len);
 	        /*patch by meshsr*/				       
-	        if(table_id==0)
-		         flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0001;
-	        if(table_id==1)
-		        flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0001;				      
-	        //forward_bitmask.
-	        if(table_id==0)
-	        {
-		        flow_action_t0.action.forward_bitmask=0x01<<(2*(da->port-1));
-	        }
-	        if(table_id==1)
-	        {
-		        flow_action_t1.action.forward_bitmask=0x01<<(2*(da->port-1));
-	        }
-
+	        if (table_id == 0) {
+			flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0001;
+		        flow_action_t0.action.forward_bitmask = 0x01 << (2 * (da->port - 1));
+	        }	       
 	        *len -= sizeof(struct ofp_action_output);
 	        *dst = (struct ofl_action_header *)da;
 	        break;
@@ -191,11 +178,8 @@ ofl_actions_unpack(struct ofp_action_header *src, size_t *len, struct ofl_action
 	    case OFPAT_POP_PBB: {
 			//ofp_action_header length was already checked
 			//hw_table_forward_bitmask.
-			if(table_id==0)
+			if(table_id == 0)
 				flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0008;
-			if(table_id==1)
-				flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0008;
-			//end hw_table_forward_bitmask.
 			*len -= sizeof(struct ofp_action_header);
 			*dst = (struct ofl_action_header *)malloc(sizeof(struct ofl_action_header));
 			break;
@@ -233,7 +217,7 @@ ofl_actions_unpack(struct ofp_action_header *src, size_t *len, struct ofl_action
 			da->queue_id = ntohl(sa->queue_id);
 			/*patch by meshsr*/
 			*len -= sizeof(struct ofp_action_set_queue);
-		    *dst = (struct ofl_action_header *)da;
+		        *dst = (struct ofl_action_header *)da;
 			break;
 		}
 	    case OFPAT_GROUP: {
@@ -304,33 +288,28 @@ ofl_actions_unpack(struct ofp_action_header *src, size_t *len, struct ofl_action
 					|| da->field->header == OXM_OF_METADATA){
 				return ofl_error(OFPET_BAD_ACTION, OFPBAC_BAD_SET_TYPE);
 			}
-			uint8_t temp0=0,temp1=0,temp9=0,temp10=0,temp13=0,temp15=0;
-			uint16_t temp2=0,temp3=0,temp11=0,temp12=0;
-			uint32_t temp4=0,temp5=0,temp14=0;
-			uint8_t *a=&temp0,*b=&temp1,*c=&temp9,*e=&temp4;
-			uint16_t *d=&temp2;
+			uint8_t temp0 = 0, temp1 = 0, temp9 = 0, temp10 = 0, temp13 = 0, temp15 = 0;
+			uint16_t temp2 = 0,temp3 = 0,temp11 = 0,temp12 = 0;
+			uint32_t temp4 = 0,temp5 = 0,temp14 = 0;
+			uint8_t *a = &temp0, *b = &temp1, *c = &temp9, *e = &temp4;
+			uint16_t *d = &temp2;
 			uint8_t eth_src[6];
 			uint8_t eth_dst[6];	
-                                  uint16_t transp_src;
+			uint16_t transp_src;
 			uint16_t transp_dst;
-                                  uint32_t ip_src;
+			uint32_t ip_src;
 		 	uint32_t ip_dst;  
 			switch(OXM_LENGTH(da->field->header)){
 				case 1:
 				case 6:
 				case 16:
-					 if(OXM_LENGTH(da->field->header)==1)
-					 {
-						  switch(OXM_FIELD(da->field->header))
-						  {
+					 if(OXM_LENGTH(da->field->header) == 1) {
+						  switch(OXM_FIELD(da->field->header)) {
 							   case 8:{									 
 								    memcpy(a, value, OXM_LENGTH(da->field->header));
 								    //hw_table_forward_bitmask.
-								    if(table_id==0)
+								    if (table_id == 0)
 										 flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0100;
-								    if(table_id==1)
-										 flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0100;
-								    //end hw_table_forward_bitmask.
 								    break;
 							   }
 							   case 9:{									
@@ -340,100 +319,56 @@ ofl_actions_unpack(struct ofp_action_header *src, size_t *len, struct ofl_action
 							   case 7:{									 
 									memcpy(c, value, OXM_LENGTH(da->field->header));
 									//hw_table_action_vlan_pcp
-									if(table_id==0)
-									{
-										 flow_action_t0.action.vlan_pcp=(*c);
-									}
-									if(table_id==1)
-									{
-										 flow_action_t1.action.vlan_pcp=(*c);
-									}									    
-									//hw_table_forward_bitmask.
-									if(table_id==0)
-										 flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0004;
-									if(table_id==1)
-										 flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0004;
-									//end hw_table_forward_bitmask.
+									if (table_id == 0) {
+										 flow_action_t0.action.vlan_pcp = (*c);
+										 flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0004;
+									}																																										
 									break;
 							   }
 						  }						 
 						  //hw_table_action_ip_tos
-						  if(table_id==0)
-						  {
-							  flow_action_t0.action.ip_tos=(*a);
+						  if (table_id == 0) {
+							  flow_action_t0.action.ip_tos = (*a);
 						  }
-						  if(table_id==1)
-						  {
-							  flow_action_t1.action.ip_tos=(*a);
-						  }
+						
 					 }
-					 if(OXM_LENGTH(da->field->header)==6)
-					 {
-
-						  switch(OXM_FIELD(da->field->header))
-						  {
+					 if (OXM_LENGTH(da->field->header) == 6) {
+						  switch (OXM_FIELD(da->field->header)) {
 							  case 4:{
 								   memcpy(&(eth_src), value, OXM_LENGTH(da->field->header));
-								   int d=0;
-								   for(d=0;d<3;d++)
-								   {
-										int temp=0;
-										temp=eth_src[d];
-										eth_src[d]=eth_src[5-d];
-										eth_src[5-d]=temp;
+								   int d = 0;
+								   for (d = 0; d < 3; d++) {
+										int temp = 0;
+										temp = eth_src[d];
+										eth_src[d] = eth_src[5-d];
+										eth_src[5-d] = temp;
 								   }
 								   //hw_table action->eth_src
-								   for(d=0;d<6;d++)
-								   {
-										 if(table_id==0)
-										 {
-											 flow_action_t0.action.eth_src[d]=eth_src[d];
-										 }
-										 if(table_id==1)
-										 {
-											 flow_action_t1.action.eth_src[d]=eth_src[d];
-										 }
-
-								   }									 
-								   //end hw_table action.
-								   //hw_table_forward_bitmask.
-								   if(table_id==0)
-									    flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0010;
-								   if(table_id==1)
-									    flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0010;
-								   //end hw_table_forward_bitmask.
+								   for ( d = 0; d < 6; d++) {
+										 if(table_id == 0) {
+											 flow_action_t0.action.eth_src[d] = eth_src[d];
+										 }	 
+								   }																	   
+								   if (table_id == 0)
+									    flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0010;							   
 								   break;
 							  }
 							  case 3:{
 									 memcpy(&(eth_dst), value, OXM_LENGTH(da->field->header));
-
-									 int s=0;
-									 for(s=0;s<3;s++)
-									 {
-										 int tempt=0;
-										 tempt=eth_dst[s];
-										 eth_dst[s]=eth_dst[5-s];
-										 eth_dst[5-s]=tempt;}
+									 int s = 0;
+									 for (s = 0; s < 3; s++) {
+										 int tempt = 0;
+										 tempt = eth_dst[s];
+										 eth_dst[s] = eth_dst[5-s];
+										 eth_dst[5-s] = tempt;}
 									 //hw_table action->eth_dst
-									 for(s=0;s<6;s++)
-									 {
-										 if(table_id==0)
-										 {
-											 flow_action_t0.action.eth_dst[s]=eth_dst[s];
+									 for (s = 0; s < 6; s++) {
+										 if(table_id == 0) {
+											 flow_action_t0.action.eth_dst[s] = eth_dst[s];
 										 }
-										 if(table_id==1)
-										 {
-											 flow_action_t1.action.eth_dst[s]=eth_dst[s];
-										 }
-
-									 }
-									 //end hw_table action
-									 //hw_table_forward_bitmask.
-									 if(table_id==0)
-										 flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0020;
-									 if(table_id==1)
-										 flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0020;
-									 //end hw_table_forward_bitmask.
+									 } 
+									 if (table_id == 0)
+										 flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0020;
 									 break;
 							  }
 						  }
@@ -442,138 +377,70 @@ ofl_actions_unpack(struct ofp_action_header *src, size_t *len, struct ofl_action
 					 break;
 
 				case 2:{
-					 uint16_t v = ntohs(*((uint16_t*) value));
-					 if(OXM_LENGTH(da->field->header)==2)
-					 {
-						  switch(OXM_FIELD(da->field->header))
-						  {
+					uint16_t v = ntohs(*((uint16_t*) value));
+					if(OXM_LENGTH(da->field->header) == 2) {
+						switch(OXM_FIELD(da->field->header)) {
 								case 13:{
-									 memcpy(&(transp_src),&v, OXM_LENGTH(da->field->header));
+									 memcpy(&(transp_src), &v, OXM_LENGTH(da->field->header));
 									 //hw_table_transp		
-									 if(table_id==0)
-									 {
-										  flow_action_t0.action.transp_src=transp_src;
-									 }
-									 if(table_id==1)
-								     {
-									      flow_action_t1.action.transp_src=transp_src;
-									 }
-									 //end hw_table_transp
-									 //hw_table_forward_bitmask.
-									 if(table_id==0)
-										  flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0200;
-									 if(table_id==1)
-									      flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0200;
-									 //end hw_table_forward_bitmask.
+									 if (table_id == 0) {
+										  flow_action_t0.action.transp_src = transp_src;
+										  flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0200;
+									 }									 
 									 break;
 								}
 								case 14:{
-									 memcpy(&(transp_dst),&v, OXM_LENGTH(da->field->header));
+									 memcpy(&(transp_dst), &v, OXM_LENGTH(da->field->header));
 									 //hw_table_transp	
-									 if(table_id==0)
-									 {
-										 flow_action_t0.action.transp_dst=transp_dst;
-									 }
-									 if(table_id==1)
-									 {
-										 flow_action_t1.action.transp_dst=transp_dst;
-									 }
-									 //end hw_table_transp
-									 //hw_table_forward_bitmask.
-									 if(table_id==0)
-										 flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0400;
-									 if(table_id==1)
-										 flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0400;
-									 //end hw_table_forward_bitmask.
+									 if (table_id == 0) {
+										 flow_action_t0.action.transp_dst = transp_dst;
+										 flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0400;
+									 }									
 									 break;
 								}
 								case 6:{
-
 									 memcpy(d, value, OXM_LENGTH(da->field->header));
-
 									 //hw_table_action_vlan_id
-									 if(table_id==0)
-									 {
-										 flow_action_t0.action.vlan_id=(*d);
-									 }
-									 if(table_id==1)
-									 {
-										 flow_action_t1.action.vlan_id=(*d);
-									 }
-									 //end       
-									 //hw_table_forward_bitmask.
-									 if(table_id==0)
-									   	 flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0002;
-									 if(table_id==1)
-										 flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0002;
-									 //end hw_table_forward_bitmask.
+									 if (table_id == 0) {
+										 flow_action_t0.action.vlan_id = (*d);
+										 flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0002;
+									 }								 
 									 break;
 								}
 						  }
 
-					 }
-					 memcpy(da->field->value , &v, OXM_LENGTH(da->field->header));
-					 break;
+					}
+					memcpy(da->field->value , &v, OXM_LENGTH(da->field->header));
+					break;
 				}
 				case 4:{
-					 uint32_t v; 
-					 uint8_t field = OXM_FIELD(da->field->header);					
-					 if( field != 11 && field != 12 && field != 22 && field != 23)  
-						 v = htonl(*((uint32_t*) value));
-					 else v = *((uint32_t*) value);
-					 if(field==11)
-					 {
-
+					uint32_t v; 
+					uint8_t field = OXM_FIELD(da->field->header);					
+					v = htonl(*((uint32_t*) value));
+					if (field == 11) {
 						 memcpy(&(ip_src),&v, OXM_LENGTH(da->field->header));
 						 //hw_table_ip
-						 if(table_id==0)
-						 {
-							 flow_action_t0.action.ip_src=ip_src;
+						 if (table_id == 0) {
+							 flow_action_t0.action.ip_src = ip_src;
+							 flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0040;
 						 }
-						 if(table_id==1)
-						 {
-							 flow_action_t1.action.ip_src=ip_src;
-						 }
-						 //end hw_table_ip
-						 //hw_table_forward_bitmask.
-						 if(table_id==0)
-							 flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0040;
-						 if(table_id==1)
-							 flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0040;
-						 //end hw_table_forward_bitmask.
-					 }
-					 if(field==12)
-					 {
-
-						  memcpy(&(ip_dst),&v, OXM_LENGTH(da->field->header));
+		
+					}
+					if(field == 12) {
+						  memcpy(&(ip_dst), &v, OXM_LENGTH(da->field->header));
 						  //hw_table_ip	
-						  if(table_id==0)
-						  {
-							 flow_action_t0.action.ip_dst=ip_dst;
-						  }
-						  if(table_id==1)
-						  {
-							  flow_action_t1.action.ip_dst=ip_dst;
-						  }
-						  //end hw_table_ip
-						  //hw_table_forward_bitmask.
-						  if(table_id==0)
-							  flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0080;
-						  if(table_id==1)
-							  flow_action_t1.action.nf2_action_flag=flow_action_t1.action.nf2_action_flag|0x0080;
-						  //end hw_table_forward_bitmask.
-					 }
-					 if(field==34)
-					 {						  
-					 }
-
-					 memcpy(da->field->value , &v, OXM_LENGTH(da->field->header));
-					 break;
+						  if(table_id == 0) {
+							 flow_action_t0.action.ip_dst = ip_dst;
+							 flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x0080;
+						  }							  
+					}
+					memcpy(da->field->value , &v, OXM_LENGTH(da->field->header));
+					break;
 				}
 				case 8:{
-					 uint64_t v = hton64(*((uint64_t*) value));
-					 memcpy(da->field->value , &v, OXM_LENGTH(da->field->header));
-					 break;
+					uint64_t v = hton64(*((uint64_t*) value));
+					memcpy(da->field->value , &v, OXM_LENGTH(da->field->header));
+					break;
 				}                
 			}			
 			*len -= ROUND_UP(ntohs(src->len),8);

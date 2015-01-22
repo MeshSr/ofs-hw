@@ -15,7 +15,7 @@
  *     this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * AND ANY EXprevSS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
  * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
@@ -38,8 +38,8 @@
 #include "oflib/oxm-match.h"
 #include "time.h"
 #include "dp_capabilities.h"
-//#include "packet_handle_std.h"
-
+#include "../oflib/hw_table_define.h" 
+#include "../oflib/reg_defines_openflow_switch.h"
 #include "vlog.h"
 #define LOG_MODULE VLM_flow_t
 
@@ -91,7 +91,11 @@ add_to_timeout_lists(struct flow_table *table, struct flow_entry *entry) {
         list_insert(&e->hard_node, &entry->hard_node);
     }
 }
-
+extern PNode hw_table;
+extern nf2_of_entry_wrap_t0 flow_entry_t0;	
+extern nf2_of_mask_wrap_t0 flow_mask_t0;
+extern nf2_of_action_wrap flow_action_t0;
+extern hw_table_list *hw_table_list_t0;
 /* Handles flow mod messages with ADD command. */
 static ofl_err
 flow_table_add(struct flow_table *table, struct ofl_msg_flow_mod *mod, bool check_overlap, bool *match_kept, bool *insts_kept) {
@@ -108,9 +112,17 @@ flow_table_add(struct flow_table *table, struct ofl_msg_flow_mod *mod, bool chec
             new_entry = flow_entry_create(table->dp, table, mod);
             *match_kept = true;
             *insts_kept = true;
-
+           
+            
             /* NOTE: no flow removed message should be generated according to spec. */
             list_replace(&new_entry->match_node, &entry->match_node);
+            if (mod->priority !=0 && mod->priority != 65535) {
+		    int i = hw_table_list_compare(hw_table_list_t0, hw_table);		    
+		    add_entry(mod->table_id, 16 - i);
+		    hw_table_list_replace(hw_table_list_t0, hw_table, i);  
+                    printf("replace entry ok! table_id:%d prio:%d\n", mod->table_id, 16 - i);         
+            }
+           
             list_remove(&entry->hard_node);
             list_remove(&entry->idle_node);
             flow_entry_destroy(entry);
@@ -133,8 +145,20 @@ flow_table_add(struct flow_table *table, struct ofl_msg_flow_mod *mod, bool chec
     *insts_kept = true;
 
     list_insert(&entry->match_node, &new_entry->match_node);
+    if (mod->priority != 0 && mod->priority != 65535) {
+	    int i, num = hw_table_list_insert(hw_table_list_t0, hw_table);
+	    PNode cur = hw_table_list_t0->head;
+	    for (i = 0; i < hw_table_list_t0->size; i++) {
+		if (i >= num - 1) {			
+			move_entry(0, 15 - i, cur->hw_entry.flow_entry, cur->hw_entry.flow_mask, cur->hw_entry.flow_action);
+			printf("add entry ok! table_id:%d prio:%d\n", mod->table_id, 15-i);
+		}
+		cur = cur->next;
+	    }
+	   
+    }
     add_to_timeout_lists(table, new_entry);
-
+   
     return 0;
 }
 
@@ -153,21 +177,250 @@ flow_table_modify(struct flow_table *table, struct ofl_msg_flow_mod *mod, bool s
 
     return 0;
 }
+/* meshsr add */
+int judge_mask(nf2_of_mask_wrap_t0 mask1, nf2_of_mask_wrap_t0 mask2)
+{
+	int i = 0,flag = 1;
+	if (mask1.entry.src_port == mask2.entry.src_port)
+	{
+		for (i = 0; i < 6; i++)
+		{
+			if (mask1.entry.eth_dst[i] != mask2.entry.eth_dst[i])
+			{
+				flag = 0;
+				break;
+			}	
+		}
+	}
+	else
+		flag = 0;
+	return flag;
+}
+int judge_entry(nf2_of_entry_wrap_t0 entry1, nf2_of_entry_wrap_t0 entry2)
+{
+	int i = 0,flag = 1;
+	if (entry1.entry.src_port == entry2.entry.src_port) {
+		for (i = 0; i < 6; i++) {
+			if(entry1.entry.eth_dst[i] != entry2.entry.eth_dst[i]) {
+				flag = 0;
+				break;
+			}	
+		}
+	}
+	else
+		flag = 0;
+	return flag;
+}
+
+void delete_strict( struct ofl_msg_flow_mod *mod)
+{
+	int findflag = 0, position = 0;
+	PNode cur = hw_table_list_t0->head;
+	while (cur) {
+		if (cur->hw_entry.prio == mod->priority) {
+			int result = judge_mask(cur->hw_entry.flow_mask, flow_mask_t0);
+			if (result == 1) {
+				result=judge_entry(cur->hw_entry.flow_entry, flow_entry_t0);
+				if (result == 1) {
+					findflag = 1;
+					break;
+				}
+			}
+		}
+		cur = cur->next;
+		position++;
+	}      	
+	if (findflag == 0) {
+		puts("Not Found!");
+		return;
+	}
+	else {
+		//We find it!Firstly,we delete it!
+		int row = 15 - position;
+		del_entry(0, row);
+		int posflag = -1;
+		PNode newcur;
+		if (cur == hw_table_list_t0->head) {
+			if (hw_table_list_t0->size == 1) {
+				hw_table_list_t0->head = NULL;
+				newcur = NULL;
+			}
+			else {
+				hw_table_list_t0->head = hw_table_list_t0->head->next;
+				hw_table_list_t0->head->prev = NULL;			
+				newcur = hw_table_list_t0->head;
+				free(cur);
+			}
+			posflag = 0;
+			hw_table_list_t0->size--;
+		}
+		else if (cur->next) {
+				newcur = cur->next;
+				cur->next->prev = cur->prev;
+				cur->prev->next = cur->next;
+				posflag = 1;
+				free(cur);
+				hw_table_list_t0->size--;
+		}
+		else {
+				cur->prev->next = NULL;
+				free(cur);
+				posflag = 2;
+				hw_table_list_t0->size--;
+				newcur = NULL;
+		}
+		//Then,we move the entries back to front.
+		if ((posflag == 0) || (posflag == 1)) {
+			while (newcur) {
+				row = 15 - (position + 1);
+				del_entry(0, row);
+				nf2_of_entry_wrap_t0 flow_entry = newcur->hw_entry.flow_entry;
+				nf2_of_mask_wrap_t0 flow_mask = newcur->hw_entry.flow_mask;
+				nf2_of_action_wrap flow_action = newcur->hw_entry.flow_action;
+				row = 15 - position;
+				move_entry(0, row,flow_entry, flow_mask,flow_action);	
+				newcur = newcur->next;
+				position++;
+			}
+		}
+	}
+	return;
+}
+
+
+void delete_no_strict( struct ofl_msg_flow_mod *mod)
+{
+	int i,del_num = 0;
+	int position = 0;
+	int flag = 0;
+	PNode cur = hw_table_list_t0->head;
+	while(cur) {
+		
+		if (judge_mask(cur->hw_entry.flow_mask, flow_mask_t0) && judge_entry(cur->hw_entry.flow_entry, flow_entry_t0)) {
+			flag = 1;
+			break;
+		}
+		position++;
+		cur = cur->next;	
+	}   	
+ 	while(cur) {
+        
+		if (judge_mask(cur->hw_entry.flow_mask, flow_mask_t0) && judge_entry(cur->hw_entry.flow_entry, flow_entry_t0)) {
+						
+			PNode tmp, tmp1;                													
+			if (cur == hw_table_list_t0->head) {
+				tmp1 = cur;
+				if (hw_table_list_t0->size == 1) {
+					hw_table_list_t0->head = hw_table_list_t0->tail = NULL;
+					hw_table_list_t0->size = 0;
+					del_num++;
+					break;
+					
+				}
+				hw_table_list_t0->head = hw_table_list_t0->head->next;
+				hw_table_list_t0->head->prev = NULL;
+				cur = hw_table_list_t0->head;
+				hw_table_list_t0->size--;
+				del_num++;
+				free(tmp1);
+			}
+			else if (cur->next) {
+				tmp1 = cur;
+				tmp = cur->next;
+				cur->next->prev = cur->prev;
+				cur->prev->next = cur->next;
+				cur = tmp;
+				hw_table_list_t0->size--;
+				del_num++;
+				free(tmp1);
+			}
+			else {
+				cur->prev->next = NULL;
+				hw_table_list_t0->size--;
+				del_num++;
+				free(cur);
+				break;
+			}																
+		}
+		else {
+			cur = cur->next;			
+		}
+	}   
+	cur = hw_table_list_t0->head;
+	for (i = 0 ;i<hw_table_list_t0->size; i++) {
+		if (i >= position && flag == 1) {
+			move_entry(0, 15 - i, cur->hw_entry.flow_entry, cur->hw_entry.flow_mask, cur->hw_entry.flow_action);
+			printf("move entry ok! prio:%d\n", 15-i);
+		}
+		cur = cur->next;
+	}
+	
+	for(i = hw_table_list_t0->size; i < hw_table_list_t0->size + del_num; i++) {
+		
+		del_entry(0, 15 - i);
+		printf("del_num:%d,del entry ok! prio:%d\n", del_num, 15 - i);
+	}
+
+
+
+}
+void delete_match_null()
+{
+	int i;
+	int num = hw_table_list_t0->size;
+	for (i = 0; i < num; i++) {
+		if(hw_table_list_t0->size == 1) {
+			del_entry(0, 15 - i);
+			PNode cur = hw_table_list_t0->head;			
+			free(cur);	
+		}
+		else {
+			del_entry(0, 15 - i);		
+			PNode cur = hw_table_list_t0->head;
+			hw_table_list_t0->head = hw_table_list_t0->head->next;
+			hw_table_list_t0->head->prev = NULL;
+			hw_table_list_t0->size--;
+			free(cur);
+		}
+		
+	}
+	hw_table_list_clear(hw_table_list_t0);
+}
 
 /* Handles flow mod messages with DELETE command. */
 static ofl_err
 flow_table_delete(struct flow_table *table, struct ofl_msg_flow_mod *mod, bool strict) {
-    struct flow_entry *entry, *next;
+     	
+	PNode cur = hw_table_list_t0->head;
+	PNode find;
+	int position = 0, findflag = 0;
 
-    LIST_FOR_EACH_SAFE (entry, next, struct flow_entry, match_node, &table->match_entries) {
-        if ((mod->out_port == OFPP_ANY || flow_entry_has_out_port(entry, mod->out_port)) &&
-            (mod->out_group == OFPG_ANY || flow_entry_has_out_group(entry, mod->out_group)) &&
-            flow_entry_matches(entry, mod, strict, true/*check_cookie*/)) {
-             flow_entry_remove(entry, OFPRR_DELETE);
+	if (strict == true) {				
+			printf("delete a active entry witch the same prio and match fields\n");
+			delete_strict(mod);		
+	}
+	else {		
+		if (hw_table->hw_entry.flow_mask.raw[0] == 0xffffffff && hw_table->hw_entry.flow_mask.raw[1] == 0xffffffff) {
+			printf("*delete all active entrys in table\n");
+			delete_match_null();			
+		}		
+		else {
+			printf("delete active entrys witch the same match fields\n");
+			delete_no_strict(mod);
+		}		
+	}
+    
+        struct flow_entry *entry, *next;
+        LIST_FOR_EACH_SAFE (entry, next, struct flow_entry, match_node, &table->match_entries) {
+            if ((mod->out_port == OFPP_ANY || flow_entry_has_out_port(entry, mod->out_port)) &&
+                 (mod->out_group == OFPG_ANY || flow_entry_has_out_group(entry, mod->out_group)) &&
+                 flow_entry_matches(entry, mod, strict, true/*check_cookie*/)) {
+                 flow_entry_remove(entry, OFPRR_DELETE);
+                 printf("delete software entry ok! prio:%d\n", entry->stats->priority);
+            }
         }
-    }
 
-    return 0;
+        return 0;
 }
 
 
@@ -413,9 +666,22 @@ flow_table_stats(struct flow_table *table, struct ofl_msg_multipart_request_flow
             if ((*stats_size) == (*stats_num)) {
                 (*stats) = xrealloc(*stats, (sizeof(struct ofl_flow_stats *)) * (*stats_size) * 2);
                 *stats_size *= 2;
-            }
-            (*stats)[(*stats_num)] = entry->stats;
+            } 
+
+	    int row = 16 - *stats_num;
+            int byte_count = 0, pkt_count = 0; 
+
+            rdReg(T0_OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_0_REG + 4*row, &byte_count);
+	    rdReg(T0_OPENFLOW_WILDCARD_LOOKUP_PKTS_HIT_0_REG + 4*row, &pkt_count);
+
+            if (*stats_num != 0 && *stats_num != hw_table_list_t0->size + 1) {
+		entry->stats->packet_count = pkt_count;               
+                entry->stats->byte_count = byte_count;
+	    }
+                     
+            (*stats)[(*stats_num)] = entry->stats;            
             (*stats_num)++;
+            
         }
     }
 }

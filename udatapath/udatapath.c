@@ -60,7 +60,7 @@
 #include "dirs.h"
 #include "vconn-ssl.h"
 #include "vlog-socket.h"
-
+#include "../oflib/hw_table_define.h" 
 #if defined(OF_HW_PLAT)
 #include <openflow/of_hw_api.h>
 #endif
@@ -82,6 +82,8 @@ static void add_ports(struct datapath *dp, char *port_list);
 
 static bool use_multiple_connections = false;
 
+hw_table_list *hw_table_list_t0;
+
 /* Need to treat this more generically */
 #if defined(UDATAPATH_AS_LIB)
 #define OFP_FATAL(_er, _str, args...) do {                \
@@ -93,22 +95,21 @@ static bool use_multiple_connections = false;
 #endif
 
 #if !defined(UDATAPATH_AS_LIB)
+
 int
 main(int argc, char *argv[])
 {
-    //htl add 2014-04-
-    int t= add_entry_output(1);
-    int m=0; 
-    m=add_entry_table(12);
-    m=add_entry_table(13);
-    m=add_entry_table(14);
-    m=add_entry_table(7);
-    m=add_entry_table(8);
-    m=add_entry_table(9);
-    m=add_entry_table(10);
-    m=add_entry_table(11);
-    return udatapath_cmd(argc, argv);
+    //meshsr add
+    int i, m = 0; 
+    for(i = 0; i < 8; i++)
+    {
+	m = add_entry_table(i);       
+    }    
     
+    hw_table_list_t0 = (hw_table_list *)malloc(sizeof(hw_table_list));
+    hw_table_list_init(hw_table_list_t0) ;
+        
+    return udatapath_cmd(argc, argv);    
 }
 #endif
 
@@ -118,7 +119,6 @@ udatapath_cmd(int argc, char *argv[])
     int n_listeners;
     int error;
     int i;
-
     set_program_name(argv[0]);
     register_fault_handlers();
     time_init();
