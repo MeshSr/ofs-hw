@@ -9,6 +9,7 @@ config.h.in~
 config.log
 config.status
 configure
+.deps
 lib/.deps/
 lib/.dirstamp
 lib/backtrace.o
@@ -85,6 +86,7 @@ oflib/ofl-structs-print.o
 oflib/ofl-structs-unpack.o
 oflib/ofl-structs.o
 oflib/oxm-match.o
+oflib/add_entry.o
 secchan/.deps/
 secchan/.dirstamp
 secchan/discovery.o
@@ -124,6 +126,8 @@ utilities/ofp-discover.o
 utilities/ofp-kill.o
 utilities/ofp-parse-leaks
 utilities/vlogconf.o
+utilities/ofp-read
+utilities/ofp-read.o
 
 *~
 .*.swp
