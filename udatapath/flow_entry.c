@@ -112,7 +112,6 @@ flow_entry_matches(struct flow_entry *entry, struct ofl_msg_flow_mod *mod, bool 
 	if (check_cookie && ((entry->stats->cookie & mod->cookie_mask) != (mod->cookie & mod->cookie_mask))) {
 		return false;
 	}
-    
     if (strict) {
         return ( (entry->stats->priority == mod->priority) &&
                  match_std_strict((struct ofl_match *)mod->match,
@@ -382,6 +381,7 @@ flow_entry_destroy(struct flow_entry *entry) {
 void
 flow_entry_remove(struct flow_entry *entry, uint8_t reason) {
     if (entry->send_removed) {
+		printf("*removed flag set!*\n");
         flow_entry_update(entry);
         {
             struct ofl_msg_flow_removed msg =

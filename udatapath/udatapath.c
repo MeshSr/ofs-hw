@@ -83,7 +83,8 @@ static void add_ports(struct datapath *dp, char *port_list);
 static bool use_multiple_connections = false;
 
 hw_table_list *hw_table_list_t0;
-
+hw_table_list *hw_table_list_t1;
+hw_table_list *hw_table_list_t2;
 /* Need to treat this more generically */
 #if defined(UDATAPATH_AS_LIB)
 #define OFP_FATAL(_er, _str, args...) do {                \
@@ -95,21 +96,30 @@ hw_table_list *hw_table_list_t0;
 #endif
 
 #if !defined(UDATAPATH_AS_LIB)
-
 int
 main(int argc, char *argv[])
 {
-    //meshsr add
-    int i, m = 0; 
-    for(i = 0; i < 8; i++)
-    {
-	m = add_entry_table(i);       
-    }    
-    
-    hw_table_list_t0 = (hw_table_list *)malloc(sizeof(hw_table_list));
+    /* meshsr add */
+    int m=0; 
+
+    m=inport_to_dma(0,0);
+    m=inport_to_dma(0,1);
+    m=inport_to_dma(0,2);
+    m=inport_to_dma(0,3);
+    m=inport_to_dma(2,0);
+    m=inport_to_dma(2,1);
+    m=inport_to_dma(2,2);
+    m=inport_to_dma(2,3);
+
+	hw_table_list_t0 = (hw_table_list *)malloc(sizeof(hw_table_list));
     hw_table_list_init(hw_table_list_t0) ;
-        
-    return udatapath_cmd(argc, argv);    
+	hw_table_list_t1 = (hw_table_list *)malloc(sizeof(hw_table_list));
+    hw_table_list_init(hw_table_list_t1) ;
+	hw_table_list_t2 = (hw_table_list *)malloc(sizeof(hw_table_list));
+    hw_table_list_init(hw_table_list_t2) ;
+
+    return udatapath_cmd(argc, argv);
+    
 }
 #endif
 
@@ -119,6 +129,7 @@ udatapath_cmd(int argc, char *argv[])
     int n_listeners;
     int error;
     int i;
+
     set_program_name(argv[0]);
     register_fault_handlers();
     time_init();

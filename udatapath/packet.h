@@ -52,6 +52,7 @@ struct packet {
     struct datapath    *dp;
     struct ofpbuf      *buffer;    /* buffer containing the packet */
     uint32_t            in_port;
+    uint64_t            metadata;
     struct action_set  *action_set; /* action set associated with the packet */
     bool                packet_out; /* true if the packet arrived in a packet out msg */
 
@@ -66,6 +67,8 @@ struct packet {
     struct packet_handle_std  *handle_std; /* handler for standard match structure */
 };
 
+struct packet *
+packet_create_del_metadata(struct datapath *dp, uint32_t in_port,struct ofpbuf *buf, bool packet_out);
 /* Creates a packet. */
 struct packet *
 packet_create(struct datapath *dp, uint32_t in_port, struct ofpbuf *buf, bool packet_out);

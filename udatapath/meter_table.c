@@ -75,7 +75,7 @@ meter_table_destroy(struct meter_table *table) {
     HMAP_FOR_EACH_SAFE(entry, next, struct meter_entry, node, &table->meter_entries) {
         meter_entry_destroy(entry);
     }
-    ///////////////////////////free features
+ 
     free(table);
 }
 
@@ -129,7 +129,7 @@ meter_table_add(struct meter_table *table, struct ofl_msg_meter_mod *mod) {
     }
 
     entry = meter_entry_create(table->dp, table, mod);
-
+	
     hmap_insert(&table->meter_entries, &entry->node, entry->stats->meter_id);
 
     table->entries_num++;

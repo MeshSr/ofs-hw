@@ -763,9 +763,6 @@ pop_pbb(struct packet *pkt, struct ofl_action_header *act UNUSED) {
         size_t move_size;
 
         move_size = (uint8_t *) pbb->c_eth_dst - (uint8_t *)eth;
-
-//        pkt->buffer->data = (uint8_t *)pkt->buffer->data + move_size;
-//        eth = (uint8_t *)eth + move_size;
         memmove(pkt->buffer->data, pbb->c_eth_dst, (pkt->buffer->size - move_size));
         pkt->buffer->size -= move_size;
 
@@ -988,7 +985,6 @@ dp_actions_output_port(struct packet *pkt, uint32_t out_port, uint32_t out_queue
                 msg.buffer_id = OFP_NO_BUFFER;
                 msg.data_length =  pkt->buffer->size;
             }
-
             if (!pkt->handle_std->valid){
                 packet_handle_std_validate(pkt->handle_std);
             }
@@ -1056,7 +1052,8 @@ dp_actions_validate(struct datapath *dp, size_t actions_num, struct ofl_action_h
         if (actions[i]->type == OFPAT_OUTPUT) {
             struct ofl_action_output *ao = (struct ofl_action_output *)actions[i];
 
-            if (ao->port <= OFPP_MAX && dp_ports_lookup(dp, ao->port) == NULL) {
+            /* for onetswitch, the every dma is a logic port in fpga, so the logic port num is hw_port*2 */
+            if (ao->port <= OFPP_MAX && ao->port > dp->ports_num * 2) {
                 VLOG_WARN_RL(LOG_MODULE, &rl, "Output action for invalid port (%u).", ao->port);
                 return ofl_error(OFPET_BAD_ACTION, OFPBAC_BAD_OUT_PORT);
             }

@@ -52,7 +52,6 @@ struct ofl_msg_header {
     enum ofp_type   type;   /* One of the OFPT_ constants. */
 };
 
-
 /*********************
  * Immutable messages
  *********************/
@@ -62,8 +61,8 @@ struct ofl_msg_header {
 struct ofl_msg_error {
     struct ofl_msg_header   header; /* OFPT_ERROR */
 
-    enum ofp_error_type   type;
-    uint16_t              code;
+    uint16_t   type;
+    uint16_t   code;
     size_t     data_length;
     uint8_t   *data;          /* textual errors (OFPET_HELLO_FAILED) or original
 +                                  request. */

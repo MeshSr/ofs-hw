@@ -44,10 +44,32 @@
 
 
 struct packet *
+packet_create_del_metadata(struct datapath *dp, uint32_t in_port,
+    struct ofpbuf *buf, bool packet_out) {
+    struct packet *pkt;
+      
+    pkt = xmalloc(sizeof(struct packet));
+    pkt->metadata=*((char*)buf->data+7);	
+    buf->data = (void*)((char*)buf->data + 8);
+    pkt->dp         = dp;
+    pkt->buffer     = buf;
+    pkt->in_port    = in_port;
+    pkt->action_set = action_set_create(dp->exp);
+    pkt->packet_out       = packet_out;
+    pkt->out_group        = OFPG_ANY;
+    pkt->out_port         = OFPP_ANY;
+    pkt->out_port_max_len = 0;
+    pkt->out_queue        = 0;
+    pkt->buffer_id        = NO_BUFFER;
+    pkt->table_id         = 0;
+
+    pkt->handle_std = packet_handle_std_create(pkt);
+    return pkt;
+}
+struct packet *
 packet_create(struct datapath *dp, uint32_t in_port,
     struct ofpbuf *buf, bool packet_out) {
     struct packet *pkt;
-
     pkt = xmalloc(sizeof(struct packet));
 
     pkt->dp         = dp;
@@ -66,7 +88,6 @@ packet_create(struct datapath *dp, uint32_t in_port,
     pkt->handle_std = packet_handle_std_create(pkt);
     return pkt;
 }
-
 struct packet *
 packet_clone(struct packet *pkt) {
     struct packet *clone;

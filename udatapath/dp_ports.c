@@ -48,6 +48,7 @@
 #include "pipeline.h"
 #include "oflib/ofl.h"
 #include "oflib/ofl-messages.h"
+#include "oflib/reg_defines_openflow_switch.h"
 #include "oflib-exp/ofl-exp-openflow.h"
 #include "oflib/ofl-log.h"
 #include "util.h"
@@ -214,17 +215,15 @@ dp_hw_drv_init(struct datapath *dp)
 static void
 process_buffer(struct datapath *dp, struct sw_port *p, struct ofpbuf *buffer) {
     struct packet *pkt;
-
-    if (p->conf->config & ((OFPPC_NO_RECV | OFPPC_PORT_DOWN) != 0)) {
+    if ((p->conf->config & (OFPPC_NO_RECV | OFPPC_PORT_DOWN))!= 0) {
         ofpbuf_delete(buffer);
         return;
     }
-
+	
     // packet takes ownership of ofpbuf buffer
-    pkt = packet_create(dp, p->stats->port_no, buffer, false);
+    pkt = packet_create_del_metadata(dp, p->stats->port_no, buffer, false);
     pipeline_process_packet(dp->pipeline, pkt);
 }
-
 void
 dp_ports_run(struct datapath *dp) {
     // static, so an unused buffer can be reused at the dp_ports_run call
@@ -263,6 +262,7 @@ dp_ports_run(struct datapath *dp) {
             buffer = ofpbuf_new_with_headroom(hard_header + mtu, headroom);
         }
         error = netdev_recv(p->netdev, buffer);
+        
         if (error == ENETDOWN){
             VLOG_ERR(LOG_MODULE, "Não tenho nada mas tô aqui...");
         }
@@ -271,6 +271,7 @@ dp_ports_run(struct datapath *dp) {
             p->stats->rx_bytes += buffer->size;
             // process_buffer takes ownership of ofpbuf buffer
             process_buffer(dp, p, buffer);
+	    
             buffer = NULL;
         } else if (error != EAGAIN) {
             if(error == ENETDOWN){
@@ -424,7 +425,7 @@ new_port(struct datapath *dp, struct sw_port *port, uint32_t port_no,
     memset(port->queues, 0x00, sizeof(port->queues));
 
     list_push_back(&dp->port_list, &port->node);
-    dp->ports_num++;
+	dp->ports_num++;
 
     {
     /* Notify the controllers that this port has been added */
@@ -677,7 +678,7 @@ dp_ports_handle_port_mod(struct datapath *dp, struct ofl_msg_port_mod *msg,
         p->conf->config &= ~msg->mask;
         p->conf->config |= msg->config & msg->mask;
     }
-
+	
     /*Notify all controllers that the port status has changed*/
     struct ofl_msg_port_status rep_msg =
             {{.type = OFPT_PORT_STATUS},
@@ -688,11 +689,48 @@ dp_ports_handle_port_mod(struct datapath *dp, struct ofl_msg_port_mod *msg,
     ofl_msg_free((struct ofl_msg_header *)msg, dp->exp);
     return 0;
 }
-
+void dp_port_rx_count(struct sw_port *port, int addr, int NUM, unsigned long *count) {
+	int i;	
+	unsigned count_low, count_high;
+	for (i = 0; i < NUM; i++) {
+		rdReg((addr | (((port->stats->port_no - 1) * 4) << 0x10))+ i * 4, &count_low);
+		rdReg((addr | (((port->stats->port_no - 1) * 4) << 0x10)) + (i + 1) * 4, &count_high);
+		*count += count_low | (count_high << 0x20);
+	}
+}
+void dp_port_tx_count(struct sw_port *port, int addr, int NUM, unsigned *count) {
+	int i;
+	unsigned tx_count; 	
+	for (i = 0; i < NUM; i++) {
+		rdReg(addr | (((port->stats->port_no - 1) * 2) << 0x14) | (i << 0x8), &tx_count);	
+		*count += tx_count;
+	}
+}
 static void
 dp_port_stats_update(struct sw_port *port) {
+	unsigned long count_rx_pkt = 0, count_rx_byte = 0, count_tx_pkt = 0, count_tx_byte = 0, count_rx_crc_error = 0;
+	unsigned count_queue_trans_pkt = 0, count_queue_trans_byte= 0, count_queue_drop_pkt = 0, count_queue_drop_byte = 0;
+	
+	dp_port_rx_count(port, PORT_RX_PKT_REG, 1, &count_rx_pkt);
+	dp_port_rx_count(port, PORT_RX_BYTE_REG, 1, &count_rx_byte);
+	dp_port_rx_count(port, PORT_RX_CRC_ERROR_REG, 1, &count_rx_crc_error);
+	dp_port_tx_count(port, QUEUE_TRANSMIT_PKT_COUNT_REG, 5, &count_queue_trans_pkt);
+	dp_port_tx_count(port, QUEUE_DROP_PKT_COUNT_REG, 5, &count_queue_drop_pkt);
+	dp_port_tx_count(port, QUEUE_TRANSMIT_BYTE_COUNT_REG, 5, &count_queue_trans_byte);
+	dp_port_tx_count(port, QUEUE_DROP_BYTE_COUNT_REG, 5, &count_queue_drop_byte);
+	
+	count_tx_pkt = count_queue_trans_pkt + count_queue_drop_pkt;
+	count_tx_byte = count_queue_trans_byte + count_queue_drop_byte;
+	
     port->stats->duration_sec  =  (time_msec() - port->created) / 1000;
     port->stats->duration_nsec = ((time_msec() - port->created) % 1000) * 1000;
+	port->stats->rx_packets = count_rx_pkt;
+	port->stats->tx_packets = count_tx_pkt;
+	port->stats->rx_bytes = count_rx_byte;
+	port->stats->tx_bytes = count_tx_byte;
+	port->stats->rx_crc_err = count_rx_crc_error;
+	port->stats->tx_dropped = count_queue_drop_pkt;
+		
 }
 
 ofl_err
@@ -772,6 +810,16 @@ static void
 dp_ports_queue_update(struct sw_queue *queue) {
     queue->stats->duration_sec  =  (time_msec() - queue->created) / 1000;
     queue->stats->duration_nsec = ((time_msec() - queue->created) % 1000) * 1000;
+	
+	rdReg(QUEUE_TRANSMIT_BYTE_COUNT_REG 
+		|(((queue->stats->port_no - 1) * 2) << 0x14)
+			|(queue->stats->queue_id << 0x08), &(queue->stats->tx_bytes));
+	rdReg(QUEUE_TRANSMIT_PKT_COUNT_REG 
+		|(((queue->stats->port_no - 1) * 2) << 0x14)
+			|(queue->stats->queue_id << 0x08), &(queue->stats->tx_packets));
+	rdReg(QUEUE_DROP_PKT_COUNT_REG 
+		|(((queue->stats->port_no - 1) * 2) << 0x14)
+			|(queue->stats->queue_id << 0x08), &(queue->stats->tx_errors));
 }
 
 ofl_err

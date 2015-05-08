@@ -46,7 +46,6 @@
 #include "nbee_link/nbee_link.h"
 
 /* Resets all protocol fields to NULL */
-
 void
 packet_handle_std_validate(struct packet_handle_std *handle) {
 
@@ -57,6 +56,7 @@ packet_handle_std_validate(struct packet_handle_std *handle) {
         free(iter->value);
         free(iter);
     }
+    
     ofl_structs_match_init(&handle->match);
 
     if (nblink_packet_parse(handle->pkt->buffer,&handle->match,
@@ -64,11 +64,15 @@ packet_handle_std_validate(struct packet_handle_std *handle) {
         return;
 
     handle->valid = true;
-
+    
     /* Add in_port value to the hash_map */
     ofl_structs_match_put32(&handle->match, OXM_OF_IN_PORT, handle->pkt->in_port);
     /*Add metadata value to the hash_map */
-    ofl_structs_match_put64(&handle->match,  OXM_OF_METADATA, 0xffffffffffffffff);
+    if (handle->pkt->metadata == 0x0) {    
+		ofl_structs_match_put64(&handle->match,  OXM_OF_METADATA, 0xffffffffffffffff);	
+    }else {
+		ofl_structs_match_put64(&handle->match,  OXM_OF_METADATA, handle->pkt->metadata);
+    }
     return;
 }
 

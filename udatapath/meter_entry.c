@@ -44,6 +44,7 @@
 #include "timeval.h" 
 #include <math.h>
 #include "vlog.h"
+#include "../oflib/reg_defines_openflow_switch.h"
 #define LOG_MODULE VLM_meter_e
 
 static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(60, 60);
@@ -73,7 +74,6 @@ meter_entry_create(struct datapath *dp, struct meter_table *table, struct ofl_ms
     entry->dp          = dp;
     entry->table       = table;
 
-
     entry->config = xmalloc(sizeof(struct ofl_meter_config));
     entry->config->meter_id =  mod->meter_id;
     entry->config->flags =    mod->flags;
@@ -89,6 +89,11 @@ meter_entry_create(struct datapath *dp, struct meter_table *table, struct ofl_ms
 				band->rate = mod->bands[i]->rate;
 				band->burst_size = mod->bands[i]->burst_size;
 				entry->config->bands[i] = (struct ofl_meter_band_header *) band;
+				/* add/mod hard meter,the hw_meter is different with sw_meter ,
+				so we use the meter_id 0-4 as hw_meter_id and higher than 4 as the sw_meter_id in order to avoid collision  */
+				if (mod->meter_id < 5) {
+					mod_meter(mod->meter_id,mod->bands[i]->rate);
+				}
 			    break;
 			}
 			case (OFPMBT_DSCP_REMARK):{
@@ -141,6 +146,11 @@ meter_entry_create(struct datapath *dp, struct meter_table *table, struct ofl_ms
 
 void
 meter_entry_update(struct meter_entry *entry) {
+	
+	if (entry->stats->meter_id < 4) {
+		rdReg(METER_PASS_PKT_COUNTER|(entry->stats->meter_id << 0x08), &(entry->stats->band_stats[0]->packet_band_count));
+		rdReg(METER_PASS_BYTE_COUNTER|(entry->stats->meter_id << 0x08), &(entry->stats->band_stats[0]->byte_band_count));	
+	}
     entry->stats->duration_sec  =  (time_msec() - entry->created) / 1000;
     entry->stats->duration_nsec = ((time_msec() - entry->created) % 1000) * 1000;
 }

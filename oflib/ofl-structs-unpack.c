@@ -41,16 +41,14 @@
 #include "ofl-log.h"
 #include "oxm-match.h"
 #include "openflow/openflow.h"
-#include "ofl-messages.h"
 #include "hw_table_define.h"
-#include "reg_defines_openflow_switch.h"
+#include "ofl-messages.h"
 #define LOG_MODULE ofl_str_u
 OFL_LOG_INIT(LOG_MODULE)
 
-extern nf2_of_action_wrap flow_action_t0;
+extern PNode hw_entry;
 extern table_id;
-uint32_t meter = 0;
-
+extern hw_in_port;
 ofl_err
 ofl_structs_instructions_unpack(struct ofp_instruction *src, size_t *len, struct ofl_instruction_header **dst, struct ofl_exp *exp) {
     size_t ilen;
@@ -90,11 +88,24 @@ ofl_structs_instructions_unpack(struct ofp_instruction *src, size_t *len, struct
             di = (struct ofl_instruction_goto_table *)malloc(sizeof(struct ofl_instruction_goto_table));
 
             di->table_id = si->table_id;
-			/*patch by meshsr*/
-			if (table_id == 0) {
-				flow_action_t0.action.next_table_id = si->table_id;	      
-				flow_action_t0.action.nf2_action_flag = flow_action_t0.action.nf2_action_flag|0x1000;
+            /*in hw table, if goto_table_id larger than 3 ,send packet to dma*/
+			if(si->table_id >=3 && table_id <= 2)
+			{	
+					hw_entry->flow_entry.flow_action.action.forward_bitmask = 0x02 << (2*(hw_in_port-1));
+					//hw_entry->flow_entry.flow_action.action.nf2_action_flag = hw_entry->flow_entry.flow_action.action.nf2_action_flag|0x0001;
+					hw_entry->flow_entry.flow_action.action.nf2_action_flag[0] |= 0x01;
+					hw_entry->flow_entry.flow_action.action.nf2_action_flag[1] |= 0x00;
+					hw_entry->flow_entry.flow_action.action.nf2_action_flag[2] |= 0x00;
 			}
+			else
+			{
+				hw_entry->flow_entry.flow_action.action.meter_and_n_table |= (si->table_id & 0xf) << 0x4;
+				//hw_entry->flow_entry.flow_action.action.nf2_action_flag = hw_entry->flow_entry.flow_action.action.nf2_action_flag|0x1000;
+				hw_entry->flow_entry.flow_action.action.nf2_action_flag[0] |= 0x00;
+				hw_entry->flow_entry.flow_action.action.nf2_action_flag[1] |= 0x10;
+				hw_entry->flow_entry.flow_action.action.nf2_action_flag[2] |= 0x00;
+			}
+            
             inst = (struct ofl_instruction_header *)di;
             ilen -= sizeof(struct ofp_instruction_goto_table);
             break;
@@ -114,7 +125,13 @@ ofl_structs_instructions_unpack(struct ofp_instruction *src, size_t *len, struct
 
             di->metadata =      ntoh64(si->metadata);
             di->metadata_mask = ntoh64(si->metadata_mask);
-
+	        
+		    hw_entry->flow_entry.flow_action.action.queue_and_metadata |= ((uint8_t)ntoh64(si->metadata) & 0xf) << 0x4;
+			//hw_entry->flow_entry.flow_action.action.nf2_action_flag = hw_entry->flow_entry.flow_action.action.nf2_action_flag|0x4000;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[0] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[1] |= 0x40;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[2] |= 0x00;
+			
             inst = (struct ofl_instruction_header *)di;
             ilen -= sizeof(struct ofp_instruction_write_metadata);
             break;
@@ -183,12 +200,13 @@ ofl_structs_instructions_unpack(struct ofp_instruction *src, size_t *len, struct
             di = (struct ofl_instruction_meter *)malloc(sizeof(struct ofl_instruction_meter));
 
             di->meter_id = ntohl(si->meter_id);
-            meter=di->meter_id;
-			//hw_table meter.
-			if(table_id==0) {
-				flow_action_t0.action.meter_id=di->meter_id;
-				flow_action_t0.action.nf2_action_flag=flow_action_t0.action.nf2_action_flag|0x0800;
-			}
+	    	
+			hw_entry->flow_entry.flow_action.action.meter_and_n_table |= di->meter_id & 0xf;
+			//hw_entry->flow_entry.flow_action.action.nf2_action_flag=hw_entry->flow_entry.flow_action.action.nf2_action_flag|0x0800;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[0] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[1] |= 0x08;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[2] |= 0x00;
+		     
             inst = (struct ofl_instruction_header *)di;
             ilen -= sizeof(struct ofp_instruction_meter);
             break; 
@@ -496,7 +514,6 @@ ofl_structs_bucket_unpack(struct ofp_bucket *src, size_t *len, uint8_t gtype, st
 }
 
 
-
 ofl_err
 ofl_structs_flow_stats_unpack(struct ofp_flow_stats *src, uint8_t *buf, size_t *len, struct ofl_flow_stats **dst, struct ofl_exp *exp) {
     struct ofl_flow_stats *s;
@@ -504,8 +521,7 @@ ofl_structs_flow_stats_unpack(struct ofp_flow_stats *src, uint8_t *buf, size_t *
     ofl_err error;
     size_t slen;
     size_t i;
-    int match_pos;    
-    
+    int match_pos;
     if (*len < ( (sizeof(struct ofp_flow_stats) - sizeof(struct ofp_match)) + ROUND_UP(ntohs(src->match.length),8))) {
         OFL_LOG_WARN(LOG_MODULE, "Received flow stats has invalid length (%zu).", *len);
         return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_LEN);
@@ -535,7 +551,6 @@ ofl_structs_flow_stats_unpack(struct ofp_flow_stats *src, uint8_t *buf, size_t *
     s->idle_timeout =  ntohs( src->idle_timeout);
     s->hard_timeout =  ntohs( src->hard_timeout);
     s->cookie =        ntoh64(src->cookie);
-    
     s->packet_count =  ntoh64(src->packet_count);
     s->byte_count =    ntoh64(src->byte_count);
 
@@ -574,10 +589,8 @@ ofl_structs_flow_stats_unpack(struct ofp_flow_stats *src, uint8_t *buf, size_t *
         ofl_structs_free_flow_stats(s, exp);
         return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_LEN);
     }
-
     *len -= ntohs(src->length);
     *dst = s;
-
     return 0;
 }
 
@@ -1107,12 +1120,6 @@ ofl_structs_bucket_counter_unpack(struct ofp_bucket_counter *src, size_t *len, s
     return 0;
 }
 
-/*patch by meshsr*/
-extern iNum;
-extern iDeno;
-uint16_t temprate;
-unsigned int tmprate = 0;
-
 ofl_err
 ofl_structs_meter_band_unpack(struct ofp_meter_band_header *src, size_t *len, struct ofl_meter_band_header **dst){
 	struct ofl_meter_band_header *mb;
@@ -1126,24 +1133,6 @@ ofl_structs_meter_band_unpack(struct ofp_meter_band_header *src, size_t *len, st
 			struct ofl_meter_band_drop *b = (struct ofl_meter_band_drop *)malloc(sizeof(struct ofl_meter_band_drop));
 			b->type = ntohs(src->type);
 			b->rate = ntohl(src->rate);
-            		uint32_t temprate = b->rate;                       
-			tmprate = temprate;
-			int i, iMod, iMin;
-			iNum = temprate;
-			iDeno = 1000000;
-			if (iNum < iDeno)
-			    iMin = iNum;
-			else
-			    iMin=iDeno;
-			for (i = 2; i <= iMin; i++) {
-				if (i > iNum || i > iDeno)
-				    break;
-				if (iNum%i == 0 && iDeno%i == 0) {
-				    iNum /= i;
-				    iDeno /= i;
-				    i = 1;
-				}
-			}
 			b->burst_size = ntohl(src->burst_size);
 			mb = (struct ofl_meter_band_header *)b;
 			*dst = mb;

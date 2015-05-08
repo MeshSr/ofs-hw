@@ -51,7 +51,7 @@
 #include "hash.h"
 #include "oflib/oxm-match.h"
 #include "vlog.h"
-
+#include "../oflib/reg_defines_openflow_switch.h"
 
 #define LOG_MODULE VLM_pipeline
 
@@ -140,7 +140,7 @@ pipeline_process_packet(struct pipeline *pl, struct packet *pkt) {
         return;
     }
 
-    next_table = pl->tables[0];
+    next_table = pl->tables[3];
     while (next_table != NULL) {
         struct flow_entry *entry;
 
@@ -306,7 +306,7 @@ ofl_err
 pipeline_handle_stats_request_flow(struct pipeline *pl,
                                    struct ofl_msg_multipart_request_flow *msg,
                                    const struct sender *sender) {
-    
+
     struct ofl_flow_stats **stats = xmalloc(sizeof(struct ofl_flow_stats *));
     size_t stats_size = 1;
     size_t stats_num = 0;
@@ -335,7 +335,11 @@ pipeline_handle_stats_request_flow(struct pipeline *pl,
     ofl_msg_free((struct ofl_msg_header *)msg, pl->dp->exp);
     return 0;
 }
-
+static void pipline_table_stats_update(struct flow_table **table ,int i)
+{	
+	rdReg(TABLE_LOOKUP_COUNT_REG | (i << 0x14), &(table[i]->stats->lookup_count));
+	rdReg(TABLE_MATCH_COUNT_REG | (i << 0x14), &(table[i]->stats->matched_count)); 
+}
 ofl_err
 pipeline_handle_stats_request_table(struct pipeline *pl,
                                     struct ofl_msg_multipart_request_header *msg UNUSED,
@@ -346,6 +350,9 @@ pipeline_handle_stats_request_table(struct pipeline *pl,
     stats = xmalloc(sizeof(struct ofl_table_stats *) * PIPELINE_TABLES);
 
     for (i=0; i<PIPELINE_TABLES; i++) {
+		if (i < 3) {
+			pipline_table_stats_update(pl->tables,i);
+		}
         stats[i] = pl->tables[i]->stats;
     }
 

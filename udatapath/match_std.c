@@ -517,11 +517,11 @@ match_std_nonstrict(struct ofl_match *a, struct ofl_match *b)
     HMAP_FOR_EACH(flow_mod_match, struct ofl_match_tlv, hmap_node, &a->match_fields)
     {
         /* Check presence of match field in flow entry */
+	
         flow_entry_match = oxm_match_lookup(flow_mod_match->header, b);
         if (!flow_entry_match) {
             return false;
         }
-
         /* At this point match length and has_mask are equal */
         has_mask = OXM_HASMASK(flow_mod_match->header);
         field_len =  OXM_LENGTH(flow_mod_match->header);

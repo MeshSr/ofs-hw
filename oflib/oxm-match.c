@@ -63,9 +63,53 @@
 #include "../include/openflow/openflow.h"
 #include "ofl-messages.h"
 #include "hw_table_define.h"
+#include "reg_defines_openflow_switch.h"
 #define LOG_MODULE VLM_oxm_match
 #include "vlog.h"
 
+/*patch by meshsr*/
+extern PNode hw_entry;
+uint32_t hw_in_port;
+extern table_id;
+extern row;
+int match_type_flag_0 =5;
+int match_type_flag_1 =3;
+int match_type_flag_2 =5; 
+int hw_match_type_flag_0;
+int hw_match_type_flag_1;
+int hw_match_type_flag_2;
+int match_type_flag;
+int hw_match_type_flag;
+/*
+value = position[x][y]
+x represent match type
+	0 ip_tos
+	1 ip_proto
+	2 in_port
+	3 eth_type
+	4 transport src
+	5 transport_dst
+	6 vlan_id 
+	7 ip_src
+	8 ip_dst
+	9 mac_src
+	10 mac_dst
+y represent the header parse 
+value represent the match field's position in every header parse	
+*/
+int match_type_field_positon[11][5] ={
+	{0,0,0,0,2},    /* 0 ip_tos */
+	{0,0,0,0,1},    /* 1 ip_proto */
+	{0,0,0,0,0},	/* 2 in_port */
+	{0,0,0,0,0},	/* 3 eth_type */
+	{0,1,0,0,0},	/* 4 transport src */
+	{0,2,0,0,0},	/* 5 transport_dst */
+	{0,0,0,0,0},	/* 6 vlan_id */
+	{0,0,0,0,0},	/* 7 ip_src */
+	{0,0,0,0,0},	/* 8 ip_dst */
+	{0,0,0,0,0},	/* 9 mac_src */
+	{0,0,0,0,0},	/* 10 mac_dst */
+};
 static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
 
 /* Possible masks for TLV OXM_ETH_DST_W. */
@@ -131,7 +175,6 @@ struct ofl_match_tlv *
 oxm_match_lookup(uint32_t header, const struct ofl_match *omt)
 {
     struct ofl_match_tlv *f;
-
     HMAP_FOR_EACH_WITH_HASH(f, struct ofl_match_tlv, hmap_node, hash_int(header, 0),
     					    &omt->match_fields) {
         if (f->header == header) {
@@ -244,135 +287,399 @@ static uint8_t* get_oxm_value(struct ofl_match *m, uint32_t header){
 
      return NULL;
 }
-/*patch by meshsr*/
-extern nf2_of_entry_wrap_t0 flow_entry_t0;
-extern nf2_of_mask_wrap_t0 flow_mask_t0;
 
 static int
 parse_oxm_entry(struct ofl_match *match, const struct oxm_field *f,
-		const void *value, const void *mask){
+	const void *value, const void *mask){
 	int i;
+	if (table_id == 0) {
+		match_type_flag = match_type_flag_0;
+		hw_match_type_flag = hw_match_type_flag_0;		
+	}
+	if (table_id == 1) {
+		match_type_flag = match_type_flag_1;
+		hw_match_type_flag = hw_match_type_flag_1;	
+	}
+	if (table_id == 2) {
+		match_type_flag = match_type_flag_2;	
+		hw_match_type_flag = hw_match_type_flag_2;
+	}
 	switch (f->index) {
 		case OFI_OXM_OF_IN_PORT: {
-			 uint32_t* in_port = (uint32_t*) value;			 			
-			 unsigned port_num;
-			 unsigned port_num_phy, port_num_mask;
-			 
-			 flow_entry_t0.entry.src_port = (uint32_t)((htonl(*in_port) - 1) * 2);
-			 flow_mask_t0.entry.src_port = 0x0000;
-			 ofl_structs_match_put32(match, f->header, ntohl(*in_port));
-			 return 0;
+			uint32_t *in_port = (uint32_t*) value;
+			hw_in_port=htonl(*in_port);
+			unsigned port_num;
+			unsigned port_num_phy, port_num_mask;
+			switch (match_type_flag) {
+				case 1:{
+					hw_entry->flow_entry.flow_match.match_field_type_1.match_16.in_port = (uint32_t)((htonl(*in_port)-1)*2);
+					hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.in_port = 0x0000;		
+					break;
+				}
+				case 3:{
+					if(match_type_field_positon[2][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.in_port = (uint32_t)((htonl(*in_port)-1)*2);
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.in_port = 0x0000;
+					}
+					if(match_type_field_positon[2][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.in_port = (uint32_t)((htonl(*in_port)-1)*2);
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.in_port = 0x0000;
+					}
+					break;
+				}
+				case 5:{
+					hw_entry->flow_entry.flow_match.match_field_type_5.match_16.in_port = (uint32_t)((htonl(*in_port)-1)*2);
+					hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.in_port = 0x0000;
+					break;
+				}
+			}
+			ofl_structs_match_put32(match, f->header, ntohl(*in_port));
+			return 0;
 		}
 		case OFI_OXM_OF_IN_PHY_PORT:{
-		     /* Check for inport presence */
-		     if (check_present_prereq(match,OXM_OF_IN_PORT))
-			     ofl_structs_match_put32(match, f->header, ntohl(*((uint32_t*) value)));
-		     else return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_PREREQ);
+			/* Check for inport presence */
+			if (check_present_prereq(match,OXM_OF_IN_PORT))
+				ofl_structs_match_put32(match, f->header, ntohl(*((uint32_t*) value)));
+			else return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_PREREQ);
 
-	        }
+	    }
 		case OFI_OXM_OF_METADATA:{
-			 ofl_structs_match_put64(match, f->header, ntoh64(*((uint64_t*) value)));
-			 return 0;
+			/*patch by meshsr*/                 
+			hw_entry->flow_entry.flow_match.raw[2] = htonl(*((uint32_t*)value+1))&0x000000ff;
+			hw_entry->flow_entry.flow_mask.raw[2] = 0xffffff00;
+			if (row == 0) {
+				if (table_id == 0) {
+					hw_match_type_flag_0 = htonl(*((uint32_t*)value));
+					if (hw_match_type_flag_0 == 0
+						||hw_match_type_flag_0 == 2
+						||hw_match_type_flag_0 == 3)
+						match_type_flag_0 = 5;
+					if (hw_match_type_flag_0 == 1)
+						match_type_flag_0 = 3;
+					if (hw_match_type_flag_0 == 4)
+						match_type_flag_0 = 1;
+					wt((OPENFLOW_WILDCARD_LOOKUP_CMP_FLAG_REG|(table_id<<0x14)), hw_match_type_flag_0);
+				}
+				if (table_id == 1) {
+					hw_match_type_flag_1 = htonl(*((uint32_t*)value));
+					if (hw_match_type_flag_1 == 0
+						||hw_match_type_flag_1 == 2
+						||hw_match_type_flag_1 == 3)
+						match_type_flag_1 = 5;
+					if (hw_match_type_flag_1 == 1)
+						match_type_flag_1 = 3;
+					if (hw_match_type_flag_1 == 4)
+						match_type_flag_1 = 1;
+					wt((OPENFLOW_WILDCARD_LOOKUP_CMP_FLAG_REG|(table_id<<0x14)), hw_match_type_flag_1);
+				}
+				if (table_id == 2) {
+					hw_match_type_flag_2 = htonl(*((uint32_t*)value));
+					if (hw_match_type_flag_2 == 0
+						||hw_match_type_flag_2 == 2
+						||hw_match_type_flag_2 == 3)
+						match_type_flag_2 = 5;
+					if (hw_match_type_flag_2 == 1)
+						match_type_flag_2 = 3;
+					if (hw_match_type_flag_2 == 4)
+						match_type_flag_2 = 1;
+					wt((OPENFLOW_WILDCARD_LOOKUP_CMP_FLAG_REG|(table_id<<0x14)), hw_match_type_flag_2);
+				}
+			}
+			ofl_structs_match_put64(match, f->header, ntoh64(*((uint64_t*) value))&0x00000000000000ff);
+			return 0;
 		}
 		case OFI_OXM_OF_METADATA_W:{
-		     ofl_structs_match_put64m(match, f->header, ntoh64(*((uint64_t*) value)), ntoh64(*((uint64_t*) mask)));
-		     return 0;
-	        }
-	        /* Ethernet header. */
+ 			/*patch by meshsr*/	
+			ofl_structs_match_put64m(match, f->header, ntoh64(*((uint64_t*) value)), ntoh64(*((uint64_t*) mask)));
+			return 0;
+	    }
+	    /* Ethernet header. */
 		case OFI_OXM_OF_ETH_DST:
 		case OFI_OXM_OF_ETH_SRC:{
-			 if ((f->index) == OFI_OXM_OF_ETH_DST) {
-				 for (i = 0; i < 6; i++) {
-					 flow_entry_t0.entry.eth_dst[5-i] = *((uint8_t*)value + i);
-				 }
-				 for (i = 0; i < 6; i++) {
-					 flow_mask_t0.entry.eth_dst[i] = 0;
-				 }
-
-			 }
-			 ofl_structs_match_put_eth(match, f->header,(uint8_t* )value);
-			 return 0;
+			switch (match_type_flag) {
+				case 2:{
+					if ((f->index) == OFI_OXM_OF_ETH_SRC) { 
+						for (i = 0;i < 6;i++) {
+							hw_entry->flow_entry.flow_match.match_field_type_2.match_48.eth_src[5-i] = *((uint8_t*)value+i);
+							hw_entry->flow_entry.flow_mask.match_field_type_2.match_48.eth_src[i] = 0;
+						}
+					}
+					if ((f->index) == OFI_OXM_OF_ETH_DST) { 
+						for(i = 0;i < 6;i++) {
+							hw_entry->flow_entry.flow_match.match_field_type_2.match_48.eth_dst[5-i] = *((uint8_t*)value+i);
+							hw_entry->flow_entry.flow_mask.match_field_type_2.match_48.eth_dst[i] = 0;
+						}
+					}
+					break;
+				}
+				case 5:{
+					if ((f->index) == OFI_OXM_OF_ETH_SRC) { 
+						for (i = 0;i < 6;i++) {
+							hw_entry->flow_entry.flow_match.match_field_type_5.match_48.eth_src[5-i] = *((uint8_t*)value+i);
+							hw_entry->flow_entry.flow_mask.match_field_type_5.match_48.eth_src[i] = 0;
+						}
+					}
+					if ((f->index) == OFI_OXM_OF_ETH_DST) { 
+						for (i = 0;i < 6;i++) {
+							hw_entry->flow_entry.flow_match.match_field_type_5.match_48.eth_dst[5-i] = *((uint8_t*)value+i);
+							hw_entry->flow_entry.flow_mask.match_field_type_5.match_48.eth_dst[i] = 0;
+						}
+					}
+					break;				
+				}		
+			}
+			ofl_structs_match_put_eth(match, f->header, (uint8_t* )value);
+			return 0;
 		}
 		case OFI_OXM_OF_ETH_DST_W:
 		case OFI_OXM_OF_ETH_SRC_W:{
-		     ofl_structs_match_put_eth_m(match, f->header,(uint8_t* )value, (uint8_t* )mask );
-		     return 0;
-	        }
+			ofl_structs_match_put_eth_m(match, f->header, (uint8_t* )value, (uint8_t* )mask );
+			return 0;
+	    }
 		case OFI_OXM_OF_ETH_TYPE:{
-			 uint16_t* eth_type = (uint16_t*) value;
-			 ofl_structs_match_put16(match, f->header, ntohs(*eth_type));
-			 return 0;
+			uint16_t* eth_type = (uint16_t*) value;
+			switch (match_type_flag) {
+				case 1:{
+					hw_entry->flow_entry.flow_match.match_field_type_1.match_16.eth_type = ntohs(*eth_type);
+					hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.eth_type = 0x0000;		
+					break;
+				}
+				case 3:{
+					if(match_type_field_positon[3][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.eth_type = ntohs(*eth_type);
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.eth_type = 0x0000;
+					}
+					if(match_type_field_positon[3][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.eth_type = ntohs(*eth_type);
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.eth_type = 0x0000;
+					}
+					break;
+				}
+				case 5:{
+					hw_entry->flow_entry.flow_match.match_field_type_5.match_16.eth_type = ntohs(*eth_type);
+					hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.eth_type = 0x0000;
+					break;
+				}
+			}				
+			ofl_structs_match_put16(match, f->header, ntohs(*eth_type));
+			return 0;
 		}
 		/* 802.1Q header. */
 		case OFI_OXM_OF_VLAN_VID:{
-			 uint16_t* vlan_id = (uint16_t*) value;
-			 if (ntohs(*vlan_id) > OFPVID_PRESENT+VLAN_VID_MAX) {
-				 return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_VALUE);
-			 }
-			 else {				
-				 ofl_structs_match_put16(match, f->header, ntohs(*vlan_id));
-				 return 0;
-			 }
+			uint16_t* vlan_id = (uint16_t*) value;
+			if (ntohs(*vlan_id) > OFPVID_PRESENT+VLAN_VID_MAX) {
+				return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_VALUE);
+			} else {				
+				switch (match_type_flag) {
+					case 1:{
+						hw_entry->flow_entry.flow_match.match_field_type_1.match_16.vlan_id = ntohs(*vlan_id);
+						hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.vlan_id = 0xf000;		
+						break;
+					}
+					case 3:{
+						if(match_type_field_positon[6][hw_match_type_flag] == 1) {
+							hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.vlan_id = ntohs(*vlan_id);
+							hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.vlan_id = 0xf000;
+							
+						}
+						if(match_type_field_positon[6][hw_match_type_flag] == 2) {
+							hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.vlan_id = ntohs(*vlan_id);
+							hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.vlan_id = 0xf000;
+						}
+						break;
+					}
+					case 5:{
+						hw_entry->flow_entry.flow_match.match_field_type_5.match_16.vlan_id = ntohs(*vlan_id);
+						hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.vlan_id = 0xf000;
+						break;
+					}
+				}			
+				ofl_structs_match_put16(match, f->header, ntohs(*vlan_id));
+				return 0;
+			}
 		}
 		case OFI_OXM_OF_VLAN_VID_W:{
-		     uint16_t* vlan_id = (uint16_t*) value;
-		     uint16_t* vlan_mask = (uint16_t*) mask;
+			uint16_t* vlan_id = (uint16_t*) value;
+			uint16_t* vlan_mask = (uint16_t*) mask;
 
-		     if (ntohs(*vlan_id) > OFPVID_PRESENT+VLAN_VID_MAX)
-			     return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_VALUE);
-		     else
-		     {			   
-			     ofl_structs_match_put16m(match, f->header, ntohs(*vlan_id), ntohs(*vlan_mask));
-			     return 0;
-		     }
-	        }
+			if (ntohs(*vlan_id) > OFPVID_PRESENT+VLAN_VID_MAX)
+				return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_VALUE);
+			else {			   
+				ofl_structs_match_put16m(match, f->header, ntohs(*vlan_id), ntohs(*vlan_mask));
+				return 0;
+			}
+	    }
 		case OFI_OXM_OF_VLAN_PCP:{
 			 /* Check for VLAN_VID presence */
-			 if (check_present_prereq(match,OXM_OF_VLAN_VID)){
-				 uint8_t *p = get_oxm_value(match, OXM_OF_VLAN_VID);
-				 if (*(uint16_t*) p != OFPVID_NONE ) {
-					 uint8_t *v = (uint8_t*) value;					 
-					 ofl_structs_match_put8(match, f->header, *v);
-				 }
-				 return 0;
-			 }
-			 else {				
-				 return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_PREREQ);
-			 }
+			if (check_present_prereq(match,OXM_OF_VLAN_VID)){
+				uint8_t *p = get_oxm_value(match,OXM_OF_VLAN_VID);
+				if (*(uint16_t*) p != OFPVID_NONE ){
+					uint8_t *v = (uint8_t*) value;		
+					switch (match_type_flag) {
+						case 1:{
+							hw_entry->flow_entry.flow_match.match_field_type_1.match_16.vlan_id = 
+								(hw_entry->flow_entry.flow_match.match_field_type_1.match_16.vlan_id & 0x0fff) | ((*v) << 0xd);
+							hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.vlan_id = 0x1000;		
+							break;
+						}
+						case 3:{
+							if(match_type_field_positon[6][hw_match_type_flag] == 1) {
+								hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.vlan_id = 
+									(hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.vlan_id & 0x0fff) | ((*v) << 0xd);
+								hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.vlan_id = 0x1000;
+							
+							}
+							if(match_type_field_positon[6][hw_match_type_flag] == 2) {
+								hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.vlan_id = 
+									(hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.vlan_id & 0x0fff) | ((*v) << 0xd);
+								hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.vlan_id = 0x1000;
+							}
+							break;
+						}
+						case 5:{
+							hw_entry->flow_entry.flow_match.match_field_type_5.match_16.vlan_id = 
+								(hw_entry->flow_entry.flow_match.match_field_type_5.match_16.vlan_id & 0x0fff) | ((*v) << 0xd);
+							hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.vlan_id = 0x1000;
+							break;
+						}
+					}					 
+					ofl_structs_match_put8(match, f->header, *v);
+				}
+				return 0;
+			}
+			else
+			{				
+				return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_PREREQ);
+			}
 		}
 		/* IP header. */
 		case OFI_OXM_OF_IP_DSCP:{
-			 uint8_t *v = (uint8_t*) value;
-			 if (*v & 0xc0) {
-			 	 return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_VALUE);
-			 }
-			 else {							
-			 	 ofl_structs_match_put8(match, f->header, *v);
-				 return 0;
-			 }
+			uint8_t *v = (uint8_t*) value;
+			if (*v & 0xc0) {
+			 	return ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_VALUE);
+			}
+			else{	
+				switch (match_type_flag) {
+					case 1:{
+						if (match_type_field_positon[0][hw_match_type_flag] == 1) {
+							hw_entry->flow_entry.flow_match.match_field_type_1.match_8_1.ip_tos = *v;
+							hw_entry->flow_entry.flow_mask.match_field_type_1.match_8_1.ip_tos = 0xc0;
+						} else {
+							hw_entry->flow_entry.flow_match.match_field_type_1.match_8_2.ip_tos = *v;
+							hw_entry->flow_entry.flow_mask.match_field_type_1.match_8_2.ip_tos = 0xc0;
+						}	
+						break;
+					}
+					case 2:{
+						if (match_type_field_positon[0][hw_match_type_flag]==1) {
+							hw_entry->flow_entry.flow_match.match_field_type_1.match_8_1.ip_tos = *v;
+							hw_entry->flow_entry.flow_mask.match_field_type_1.match_8_1.ip_tos = 0xc0;
+						} else {
+							hw_entry->flow_entry.flow_match.match_field_type_1.match_8_2.ip_tos = *v;
+							hw_entry->flow_entry.flow_mask.match_field_type_1.match_8_2.ip_tos = 0xc0;
+						}	
+						break;
+					}
+				}								
+			 	ofl_structs_match_put8(match, f->header, *v);
+				return 0;
+			}
 		}
 		case OFI_OXM_OF_IP_ECN:
 		case OFI_OXM_OF_IP_PROTO:{
-			 uint8_t *v = (uint8_t*) value;
-			 ofl_structs_match_put8(match, f->header, *v);
-			 return 0;
+			uint8_t *v = (uint8_t*) value;
+			switch (match_type_flag) {
+				case 1:{
+					if (match_type_field_positon[1][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_1.match_8_1.ip_tos = *v;
+						hw_entry->flow_entry.flow_mask.match_field_type_1.match_8_1.ip_tos = 0x00;
+					} 
+					if (match_type_field_positon[1][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_1.match_8_2.ip_tos = *v;
+						hw_entry->flow_entry.flow_mask.match_field_type_1.match_8_2.ip_tos = 0x00;
+					}	
+					break;
+				}
+				case 2:{
+					if (match_type_field_positon[1][hw_match_type_flag]==1) {
+						hw_entry->flow_entry.flow_match.match_field_type_1.match_8_1.ip_tos = *v;
+						hw_entry->flow_entry.flow_mask.match_field_type_1.match_8_1.ip_tos = 0x00;
+					} 
+					if (match_type_field_positon[1][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_1.match_8_2.ip_tos = *v;
+						hw_entry->flow_entry.flow_mask.match_field_type_1.match_8_2.ip_tos = 0x00;
+					}	
+					break;
+				}
+			}				
+			ofl_structs_match_put8(match, f->header, *v);
+			return 0;
 		}
 		/* IP addresses in IP and ARP headers. */
 		case OFI_OXM_OF_IPV4_SRC:
+			 
 		case OFI_OXM_OF_IPV4_DST:
+			 
+			 
 		case OFI_OXM_OF_ARP_TPA:
-		case OFI_OXM_OF_ARP_SPA:						 
+		case OFI_OXM_OF_ARP_SPA:{					 
 			 ofl_structs_match_put32(match, f->header, *((uint32_t*) value));
 			 return 0;
-		
-		case OFI_OXM_OF_IPV4_DST_W:
+		}
+		case OFI_OXM_OF_IPV4_DST_W:			 
 		case OFI_OXM_OF_IPV4_SRC_W:
 		case OFI_OXM_OF_ARP_SPA_W:
-		case OFI_OXM_OF_ARP_TPA_W:
-			
-			 ofl_structs_match_put32m(match, f->header, *((uint32_t*) value), *((uint32_t*) mask));
-			 return 0;
-		
+		case OFI_OXM_OF_ARP_TPA_W:{
+			switch (match_type_flag) {
+				case 1:{
+					if (((f->index) == OFI_OXM_OF_IPV4_DST)||((f->index) == OFI_OXM_OF_IPV4_DST_W)) {
+						hw_entry->flow_entry.flow_match.match_field_type_1.match_32.ip_dst = htonl(*((uint32_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_1.match_32.ip_dst = *((uint32_t*) mask);
+					}
+					if ((f->index) == OFI_OXM_OF_IPV4_SRC_W) {
+						hw_entry->flow_entry.flow_match.match_field_type_1.match_32.ip_src = htonl(*((uint32_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_1.match_32.ip_src = *((uint32_t*) mask);
+					}
+					break;
+				}
+				case 3:{
+					if (((f->index) == OFI_OXM_OF_IPV4_DST)||((f->index) == OFI_OXM_OF_IPV4_DST_W)) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_32.ip_dst = htonl(*((uint32_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_32.ip_dst = *((uint32_t*) mask);
+					}
+					if ((f->index) == OFI_OXM_OF_IPV4_SRC_W) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_32.ip_src = htonl(*((uint32_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_32.ip_src = *((uint32_t*) mask);
+					}
+					break;
+				}
+				case 4:{
+					if ((f->index) == OFI_OXM_OF_IPV4_DST_W) {
+						if (match_type_field_positon[8][hw_match_type_flag] == 1) {
+							hw_entry->flow_entry.flow_match.match_field_type_4.match_32_1.ip_dst = htonl(*((uint32_t*) value));
+							hw_entry->flow_entry.flow_mask.match_field_type_4.match_32_1.ip_dst = *((uint32_t*) mask);
+						}
+						if (match_type_field_positon[8][hw_match_type_flag] == 2) {
+							hw_entry->flow_entry.flow_match.match_field_type_4.match_32_2.ip_dst = htonl(*((uint32_t*) value));
+							hw_entry->flow_entry.flow_mask.match_field_type_4.match_32_2.ip_dst = *((uint32_t*) mask);
+						}
+					}
+					if ((f->index) == OFI_OXM_OF_IPV4_SRC_W) {
+						if (match_type_field_positon[7][hw_match_type_flag] == 1) {
+							hw_entry->flow_entry.flow_match.match_field_type_4.match_32_1.ip_src = htonl(*((uint32_t*) value));
+							hw_entry->flow_entry.flow_mask.match_field_type_4.match_32_1.ip_src = *((uint32_t*) mask);
+						}
+						if (match_type_field_positon[7][hw_match_type_flag] == 2) {
+							hw_entry->flow_entry.flow_match.match_field_type_4.match_32_2.ip_src = htonl(*((uint32_t*) value));
+							hw_entry->flow_entry.flow_mask.match_field_type_4.match_32_2.ip_src = *((uint32_t*) mask);
+						}
+					}
+					
+				}
+			}
+			ofl_structs_match_put32m(match, f->header, *((uint32_t*) value), *((uint32_t*) mask));
+			return 0;
+		}
 		case OFI_OXM_OF_ARP_SHA:
 		case OFI_OXM_OF_ARP_THA:
 					 ofl_structs_match_put_eth(match, f->header,(uint8_t* )value);
@@ -404,15 +711,173 @@ parse_oxm_entry(struct ofl_match *match, const struct oxm_field *f,
 					      }
 					      /* TCP header. */
 		case OFI_OXM_OF_TCP_SRC:
+			/*by meshsr*/
+			switch (match_type_flag) {
+				case 1:{
+					hw_entry->flow_entry.flow_match.match_field_type_1.match_16.tcp_src = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.tcp_src = 0x0000;		
+					break;
+				}
+				case 3:{
+					if (match_type_field_positon[4][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.tcp_src = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.tcp_src = 0x0000;
+						
+					}
+					if (match_type_field_positon[4][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.tcp_src = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.tcp_src = 0x0000;
+					}
+					break;
+				}
+				case 5:{
+					hw_entry->flow_entry.flow_match.match_field_type_5.match_16.tcp_src = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.tcp_src = 0x0000;
+					break;
+				}
+			}
+			ofl_structs_match_put16(match, f->header, ntohs(*((uint16_t*) value)));
+			return 0;
+			 
 		case OFI_OXM_OF_TCP_DST:
+			/*by meshsr*/
+			switch (match_type_flag) {
+				case 1:{
+					hw_entry->flow_entry.flow_match.match_field_type_1.match_16.tcp_dst = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.tcp_dst = 0x0000;		
+					break;
+				}
+				case 3:{
+					if (match_type_field_positon[5][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.tcp_dst = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.tcp_dst = 0x0000;
+						
+					}
+					if (match_type_field_positon[5][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.tcp_dst = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.tcp_dst = 0x0000;
+					}
+					break;
+				}
+				case 5:{
+					hw_entry->flow_entry.flow_match.match_field_type_5.match_16.tcp_dst = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.tcp_dst = 0x0000;
+					break;
+				}
+			}
+			ofl_structs_match_put16(match, f->header, ntohs(*((uint16_t*) value)));
+			return 0;
 					      /* UDP header. */
 		case OFI_OXM_OF_UDP_SRC:
+			switch (match_type_flag) {
+				case 1:{
+					hw_entry->flow_entry.flow_match.match_field_type_1.match_16.udp_src = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.udp_src = 0x0000;		
+					break;
+				}
+				case 3:{
+					if (match_type_field_positon[4][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.udp_src = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.udp_src = 0x0000;
+					
+					}
+					if (match_type_field_positon[4][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.udp_src = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.udp_src = 0x0000;
+					}
+					break;
+				}
+				case 5:{
+					hw_entry->flow_entry.flow_match.match_field_type_5.match_16.udp_src = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.udp_src = 0x0000;
+					break;
+				}
+			}
+			ofl_structs_match_put16(match, f->header, ntohs(*((uint16_t*) value)));
+			return 0;
 		case OFI_OXM_OF_UDP_DST:
+			switch (match_type_flag) {
+				case 1:{
+					hw_entry->flow_entry.flow_match.match_field_type_1.match_16.udp_dst = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.udp_dst = 0x0000;		
+					break;
+				}
+				case 3:{
+					if (match_type_field_positon[5][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.udp_dst = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.udp_dst = 0x0000;
+						
+					}
+					if (match_type_field_positon[5][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.udp_dst = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.udp_dst = 0x0000;
+					}
+					break;
+				}
+				case 5:{
+					hw_entry->flow_entry.flow_match.match_field_type_5.match_16.udp_dst = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.udp_dst = 0x0000;
+					break;
+				}
+			}
+			ofl_structs_match_put16(match, f->header, ntohs(*((uint16_t*) value)));
+			return 0;
 					      /* SCTP header. */
 		case OFI_OXM_OF_SCTP_SRC:
-		case OFI_OXM_OF_SCTP_DST:			
-			 ofl_structs_match_put16(match, f->header, ntohs(*((uint16_t*) value)));
-			 return 0;
+			switch (match_type_flag) {
+				case 1:{
+					hw_entry->flow_entry.flow_match.match_field_type_1.match_16.sctp_src = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.sctp_src = 0x0000;		
+					break;
+				}
+				case 3:{
+					if (match_type_field_positon[4][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.sctp_src = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.sctp_src = 0x0000;
+						
+					}
+					if (match_type_field_positon[4][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.sctp_src = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.sctp_src = 0x0000;
+					}
+					break;
+				}
+				case 5:{
+					hw_entry->flow_entry.flow_match.match_field_type_5.match_16.sctp_src = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.sctp_src = 0x0000;
+					break;
+				}
+			}
+			ofl_structs_match_put16(match, f->header, ntohs(*((uint16_t*) value)));
+			return 0;
+		case OFI_OXM_OF_SCTP_DST:{
+			switch (match_type_flag) {
+				case 1:{
+					hw_entry->flow_entry.flow_match.match_field_type_1.match_16.sctp_dst = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_1.match_16.sctp_dst = 0x0000;		
+					break;
+				}
+				case 3:{
+					if (match_type_field_positon[5][hw_match_type_flag] == 1) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_1.sctp_dst = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_1.sctp_dst = 0x0000;
+						
+					}
+					if (match_type_field_positon[5][hw_match_type_flag] == 2) {
+						hw_entry->flow_entry.flow_match.match_field_type_3.match_16_2.sctp_dst = ntohs(*((uint16_t*) value));
+						hw_entry->flow_entry.flow_mask.match_field_type_3.match_16_2.sctp_dst = 0x0000;
+					}
+					break;
+				}
+				case 5:{
+					hw_entry->flow_entry.flow_match.match_field_type_5.match_16.sctp_dst = ntohs(*((uint16_t*) value));
+					hw_entry->flow_entry.flow_mask.match_field_type_5.match_16.sctp_dst = 0x0000;
+					break;
+				}
+			}
+			ofl_structs_match_put16(match, f->header, ntohs(*((uint16_t*) value)));
+			return 0;
+		}
 		/* ICMP header. */
 		case OFI_OXM_OF_ICMPV4_TYPE:
 		case OFI_OXM_OF_ICMPV4_CODE:
@@ -490,8 +955,8 @@ oxm_pull_match(struct ofpbuf *buf, struct ofl_match * match_dst, int match_len)
 
     uint32_t header;
     uint8_t *p;
+	int i;
     p = ofpbuf_try_pull(buf, match_len);
-
     if (!p) {
         VLOG_DBG_RL(LOG_MODULE,&rl, "oxm_match length %u, rounded up to a "
                     "multiple of 8, is longer than space in message (max "
@@ -504,12 +969,11 @@ oxm_pull_match(struct ofpbuf *buf, struct ofl_match * match_dst, int match_len)
     ofl_structs_match_init(match_dst);
 
     while ((header = oxm_entry_ok(p, match_len)) != 0) {
-
+	
         unsigned length = OXM_LENGTH(header);
         const struct oxm_field *f;
         int error;
         f = oxm_field_lookup(header);
-
         if (!f) {
             error = ofp_mkerr(OFPET_BAD_MATCH, OFPBMC_BAD_FIELD);
         }

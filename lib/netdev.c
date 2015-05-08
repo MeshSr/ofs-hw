@@ -1442,7 +1442,7 @@ netdev_nodev_get_flags(const char *netdev_name, enum netdev_flags *flagsp)
     }
     /* Jamie change, and add the following */
     if (flags & IFF_RUNNING) {
-         *flagsp |= NETDEV_CARRIER;
+        *flagsp |= NETDEV_CARRIER;
     }
     return 0;
 }

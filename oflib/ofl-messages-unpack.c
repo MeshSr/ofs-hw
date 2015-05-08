@@ -65,8 +65,6 @@ OFL_LOG_INIT(LOG_MODULE)
 /****************************************************************************
  * Functions for unpacking ofp wire format to ofl structures.
  ****************************************************************************/
-
-
 static ofl_err
 ofl_msg_unpack_error(struct ofp_header *src, size_t *len, struct ofl_msg_header **msg) {
     struct ofp_error_msg *se;
@@ -369,7 +367,6 @@ ofl_msg_unpack_packet_out(struct ofp_header *src, size_t *len, struct ofl_msg_he
     uint8_t *data;
     ofl_err error;
     size_t i, actions_num;
-    
     if (*len < sizeof(struct ofp_packet_out)) {
         OFL_LOG_WARN(LOG_MODULE, "Received PACKET_OUT message has invalid length (%zu).", *len);
         return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_LEN);
@@ -438,32 +435,23 @@ ofl_msg_unpack_packet_out(struct ofp_header *src, size_t *len, struct ofl_msg_he
     return 0;
 }
 
-/*patch by meshsr*/
-
-PNode hw_table;
-nf2_of_entry_wrap_t0 flow_entry_t0;
-nf2_of_mask_wrap_t0 flow_mask_t0;
-nf2_of_action_wrap flow_action_t0;
-
-extern  meter;
+PNode hw_entry;
 uint8_t table_id;
-
+int row;
 static ofl_err
 ofl_msg_unpack_flow_mod(struct ofp_header *src,uint8_t* buf, size_t *len, struct ofl_msg_header **msg, struct ofl_exp *exp) {
 	struct ofp_flow_mod *sm;
 	struct ofl_msg_flow_mod *dm;
 	struct ofp_instruction *inst;
 	ofl_err error;
-	size_t i;
-	int match_pos;
-	int h=0; int t = 0; int l = 0; int j = 0; int p = 0;
-	hw_table = (PNode)malloc(sizeof(Entry_Node));
+	int i, match_pos;
+	hw_entry = (PNode)malloc(sizeof(Entry_Node));
 	/*inital hw_table*/
-	memset(&flow_entry_t0, 0, sizeof(nf2_of_entry_wrap_t0));
-	for(j = 0; j < 2; j++) {
-		flow_mask_t0.raw[j] = 0xffffffff;
+	memset(&hw_entry->flow_entry.flow_match, 0, sizeof(hw_flow_match));
+	for (i = 0; i < 3; i++) {
+		hw_entry->flow_entry.flow_mask.raw[i] = 0xffffffff;
 	} 
-	memset(&flow_action_t0, 0, sizeof(nf2_of_action_wrap));	
+	memset(&hw_entry->flow_entry.flow_action, 0, sizeof(hw_flow_action));
 
 	if (*len < (sizeof(struct ofp_flow_mod) - sizeof(struct ofp_match))) {
 		OFL_LOG_WARN(LOG_MODULE, "Received FLOW_MOD message has invalid length (%zu).", *len);
@@ -492,9 +480,11 @@ ofl_msg_unpack_flow_mod(struct ofp_header *src,uint8_t* buf, size_t *len, struct
 	dm->out_port = ntohl( sm->out_port);
 	dm->out_group = ntohl( sm->out_group);
 	dm->flags = ntohs( sm->flags);
-	int row = dm->priority;
+	row = dm->priority;
+	hw_entry->flow_entry.prio=row;
 	table_id = dm->table_id;
 	match_pos = sizeof(struct ofp_flow_mod) - 4;
+       
 	error = ofl_structs_match_unpack(&(sm->match), buf + match_pos, len, &(dm->match), exp);
 	if (error) {
 		free(dm);
@@ -522,12 +512,7 @@ ofl_msg_unpack_flow_mod(struct ofp_header *src,uint8_t* buf, size_t *len, struct
 		inst = (struct ofp_instruction *)((uint8_t *)inst + ntohs(inst->len));
 	}
 	*msg = (struct ofl_msg_header *)dm;
-	/*patch by meshsr*/
-	memcpy(&(hw_table->hw_entry.flow_entry), &flow_entry_t0, sizeof(nf2_of_entry_wrap_t0));
-	memcpy(&(hw_table->hw_entry.flow_mask), &flow_mask_t0, sizeof(nf2_of_mask_wrap_t0));
-	memcpy(&(hw_table->hw_entry.flow_action), &flow_action_t0, sizeof(nf2_of_action_wrap));
-	hw_table->hw_entry.prio = ntohs( sm->priority);
-	
+
 	return 0;
 }
 
@@ -608,12 +593,7 @@ ofl_msg_unpack_group_mod(struct ofp_header *src, size_t *len, struct ofl_msg_hea
     *msg = (struct ofl_msg_header *)dm;
     return 0;
 }
-/*patch by meshsr*/
-int iNum = 0;
-int iDeno = 0;
-uint8_t meter1 = 0;
-extern temprate;
-extern tmprate;
+
 static ofl_err
 ofl_msg_unpack_meter_mod(struct ofp_header *src, size_t *len, struct ofl_msg_header **msg) {
    struct ofp_meter_mod *sm;
@@ -621,7 +601,7 @@ ofl_msg_unpack_meter_mod(struct ofp_header *src, size_t *len, struct ofl_msg_hea
     struct ofp_meter_band_header *band;
     ofl_err error;
     size_t i;
-    uint16_t temprate1=temprate;
+    
     if (*len < sizeof(struct ofp_meter_mod)) {
         OFL_LOG_WARN(LOG_MODULE, "Received METER_MOD message has invalid length (%zu).", *len);
         return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_LEN);
@@ -651,7 +631,6 @@ ofl_msg_unpack_meter_mod(struct ofp_header *src, size_t *len, struct ofl_msg_hea
     dm->command = ntohs(sm->command);
     dm->flags = ntohs(sm->flags);
     dm->meter_id = ntohl(sm->meter_id);
-    meter1 = ((dm->meter_id)&0x000000ff);
     error = ofl_utils_count_ofp_meter_bands(&(sm->bands), *len, &dm->meter_bands_num);
     if (error) {
         free(dm);
@@ -671,11 +650,7 @@ ofl_msg_unpack_meter_mod(struct ofp_header *src, size_t *len, struct ofl_msg_hea
         }
         band = (struct ofp_meter_band_header *)((uint8_t *)band + ntohs(band->len));
     }
-    if((dm->command==OFPMC_DELETE))
-    {
-		clear_meter(meter1);
-    }
-    int m =add_meter(meter1,tmprate);
+    
     *msg = (struct ofl_msg_header *)dm;
     return 0;
 }
@@ -745,8 +720,9 @@ ofl_msg_unpack_multipart_request_flow(struct ofp_multipart_request *os, uint8_t*
     struct ofl_msg_multipart_request_flow *dm;
     ofl_err error = 0;
     int match_pos;
+
     // ofp_multipart_request length was checked at ofl_msg_unpack_multipart_request
-    
+
     if (*len < (sizeof(struct ofp_flow_stats_request) - sizeof(struct ofp_match))) {
         OFL_LOG_WARN(LOG_MODULE, "Received FLOW stats request has invalid length (%zu).", *len);
         return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_LEN);
@@ -1161,14 +1137,8 @@ ofl_msg_unpack_multipart_reply_port(struct ofp_multipart_reply *os, size_t *len,
         }
         stat = (struct ofp_port_stats *)((uint8_t *)stat + sizeof(struct ofp_port_stats));
     }
-    uint32_t readbytes = 0;
-    rdReg(0x48680030, &readbytes);
-    (*(dm->stats))->tx_bytes = (uint64_t)readbytes;
-    printf ("bytes:%d\n", readbytes);
-    printf("tx_bytes changed!\n");
-    *msg = (struct ofl_msg_header *)dm;
-    printf("end change!\n");
 
+    *msg = (struct ofl_msg_header *)dm;
     return 0;
 }
 

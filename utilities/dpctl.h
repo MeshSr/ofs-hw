@@ -49,63 +49,7 @@ struct names32 {
     char      *name;
 };
 
-struct hw0_entry_t0 {
-	uint16_t src_port;
-	uint8_t eth_dst[6];
-};
-struct hw1_entry_t1 {
-	uint32_t ip_dst;
-	uint16_t transp_src;
-	uint16_t transp_dst;
-};
-typedef union hw0_entry_wrap_t0 {
-	struct hw0_entry_t0 entry;
-	uint32_t raw[2];
-} hw0_entry_wrap_t0;
 
-typedef union hw1_entry_wrap_t1 {
-	struct  hw1_entry_t1 entry;
-	uint32_t raw[2];
-} hw1_entry_wrap_t1;
-
-typedef hw0_entry_wrap_t0 hw0_mask_wrap_t0;
-typedef hw1_entry_wrap_t1 hw1_mask_wrap_t1;
-
-struct hw0_action {
-	uint16_t forward_bitmask;
-	uint16_t nf2_action_flag;
-	uint16_t vlan_id;
-	uint8_t vlan_pcp;
-	uint8_t eth_src[6];
-	uint8_t eth_dst[6];
-	uint32_t ip_src;
-	uint32_t ip_dst;
-	uint8_t ip_tos;
-	uint16_t transp_src;
-	uint16_t transp_dst;
-	uint8_t meter_id;
-	uint8_t next_table_id;
-	uint8_t reserved[6];
-};
-
-typedef union hw0_action_wrap {
-	struct hw0_action action;
-	uint32_t raw[10];
-} hw0_action_wrap;
-
-struct of_hw_stats_t0{
-	hw0_entry_wrap_t0 entry_t0;
-	hw0_mask_wrap_t0  mask_t0;
-	hw0_action_wrap   action_t0;
-};
-struct of_hw_stats_t1{
-	hw1_entry_wrap_t1 entry_t1;
-	hw1_mask_wrap_t1  mask_t1;
-	hw0_action_wrap   action_t1;
-};
-struct of_hw_meter_stats{
-	unsigned int  kbps;
-};
 
 static struct names32 port_names[] = {
         {OFPP_IN_PORT,    "in_port"},
@@ -225,7 +169,7 @@ static struct names16 band_names[] = {
 #define FLOW_MOD_OUT_GROUP     "out_group"
 #define FLOW_MOD_FLAGS         "flags"
 #define FLOW_MOD_MATCH         "match"
-#define FLOW_MOD_ROW_ID        	"row"
+
 
 #define MATCH_IN_PORT        "in_port"
 #define MATCH_DL_SRC         "eth_src"

@@ -272,9 +272,8 @@ remote_rconn_run(struct datapath *dp, struct remote *r, uint8_t conn_id) {
                 struct ofl_msg_header *msg;
 
                 struct sender sender = {.remote = r, .conn_id = conn_id};
-
+				
                 error = ofl_msg_unpack(buffer->data, buffer->size, &msg, &(sender.xid), dp->exp);
-
                 if (!error) {
                     error = handle_control_msg(dp, msg, &sender);
 

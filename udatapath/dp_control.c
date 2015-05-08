@@ -48,6 +48,23 @@
 #define LOG_MODULE VLM_dp_ctrl
 
 static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(60, 60);
+/* Handles error messages. */
+static ofl_err
+handle_control_error(struct datapath *dp,
+           struct ofl_msg_error *msg, const struct sender *sender) {
+
+    struct ofl_msg_error error =
+            {{.type = OFPT_ERROR},
+			  .type = msg->type,
+			  .code = msg->code,
+			  .data_length = msg->data_length,
+			  .data = msg->data};
+
+    dp_send_message(dp, (struct ofl_msg_header *)&error, sender);
+    ofl_msg_free((struct ofl_msg_header *)msg, dp->exp);
+
+    return 0;
+}
 
 /* Handles barrier request messages. */
 static ofl_err
@@ -126,7 +143,6 @@ handle_control_packet_out(struct datapath *dp, struct ofl_msg_packet_out *msg,
                                                 const struct sender *sender) {
     struct packet *pkt;
     int error;
-
     if(sender->remote->role == OFPCR_ROLE_SLAVE)
         return ofl_error(OFPET_BAD_REQUEST, OFPBRC_IS_SLAVE);
 
@@ -283,7 +299,8 @@ handle_control_msg(struct datapath *dp, struct ofl_msg_header *msg,
             return 0;
         }
         case OFPT_ERROR: {
-            return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_TYPE);
+			return handle_control_error(dp, msg, sender);
+            //return ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_TYPE);
         }
         case OFPT_BARRIER_REQUEST: {
             return handle_control_barrier_request(dp, msg, sender);
