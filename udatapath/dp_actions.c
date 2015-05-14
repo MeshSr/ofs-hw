@@ -1053,7 +1053,7 @@ dp_actions_validate(struct datapath *dp, size_t actions_num, struct ofl_action_h
             struct ofl_action_output *ao = (struct ofl_action_output *)actions[i];
 
             /* for onetswitch, the every dma is a logic port in fpga, so the logic port num is hw_port*2 */
-            if (ao->port <= OFPP_MAX && ao->port > dp->ports_num * 2) {
+            if (ao->port <= 0 ||( ao->port <= OFPP_MAX && ao->port > (dp->ports_num - 1) * 2)) {
                 VLOG_WARN_RL(LOG_MODULE, &rl, "Output action for invalid port (%u).", ao->port);
                 return ofl_error(OFPET_BAD_ACTION, OFPBAC_BAD_OUT_PORT);
             }

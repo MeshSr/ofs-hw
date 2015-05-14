@@ -1721,7 +1721,7 @@ ofl_msg_unpack(uint8_t *buf, size_t buf_len, struct ofl_msg_header **msg, uint32
         	error = ofl_msg_unpack_meter_mod(oh, &len, msg);
         	break;            
 		default: {
-            error = ofl_error(OFPET_BAD_REQUEST, OFPGMFC_BAD_TYPE);
+            error = ofl_error(OFPET_BAD_REQUEST, OFPBRC_BAD_TYPE);
         }
     }
 

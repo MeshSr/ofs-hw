@@ -284,7 +284,9 @@ int delete_strict( hw_table_list *hw_table_list, struct ofl_msg_flow_mod *mod)
 	PNode cur = hw_table_list->head;
 	while(cur) {		
 		if ((cur->flow_entry.prio == mod->priority)
-			&& judge_entry_strict(cur, hw_entry)) {
+			&& judge_entry_strict(cur, hw_entry)
+                && (mod->out_port == OFPP_ANY || ((0x01 << 2*(mod->out_port-1)) 
+                    & cur->flow_entry.flow_action.action.forward_bitmask))) {
 			flag = 1;
 			break;
 		}
@@ -295,10 +297,11 @@ int delete_strict( hw_table_list *hw_table_list, struct ofl_msg_flow_mod *mod)
 		puts("the hw entry with the priority and match fields which you send is not exist!");
 		return 1;
 	}	
- 	while(cur) {
-        
+ 	while(cur) {   
 		if ((cur->flow_entry.prio == mod->priority)
-			&& judge_entry_strict(cur, hw_entry)) {						
+			&& judge_entry_strict(cur, hw_entry)
+                && (mod->out_port == OFPP_ANY || ((0x01 << 2*(mod->out_port-1)) 
+                    & cur->flow_entry.flow_action.action.forward_bitmask))) {						
 			PNode tmp, tmp1;                													
 			if (cur == hw_table_list->head) {
 				tmp1 = cur;
@@ -360,21 +363,24 @@ int delete_no_strict( hw_table_list *hw_table_list, struct ofl_msg_flow_mod *mod
 	int position = 0;
 	int flag = 0;
 	PNode cur = hw_table_list->head;
-	while(cur) {		
-		if (judge_entry(cur, hw_entry)) {
+	while(cur) {	
+		if (judge_entry(cur, hw_entry)
+            && (mod->out_port == OFPP_ANY || ((0x01 << 2*(mod->out_port-1)) 
+                & cur->flow_entry.flow_action.action.forward_bitmask))) {
 			flag = 1;
 			break;
 		}
 		position++;
 		cur = cur->next;	
-	}   	
+	}  
 	if (flag == 0) {
 		puts("the hw entry with the match fields which you send is not exist!");
 		return 1;
 	}	
- 	while(cur) {
-        
-		if (judge_entry(cur, hw_entry)) {						
+ 	while(cur) {   
+		if (judge_entry(cur, hw_entry)
+                && (mod->out_port == OFPP_ANY || ((0x01 << 2*(mod->out_port-1)) 
+                    & cur->flow_entry.flow_action.action.forward_bitmask))) {						
 			PNode tmp, tmp1;                													
 			if (cur == hw_table_list->head) {
 				tmp1 = cur;
