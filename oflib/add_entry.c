@@ -55,12 +55,122 @@ int del_entry(uint8_t tableid, int row)
 	return 0;
 }
 
+/* change for single level 64 flow entryies
+ * table 0 defautl four entries
+ * if do not match, output to dma
+ */
+#if 0
 int inport_to_dma(uint8_t tableid,int row)
 {
 	printf("add default entries to table :%d,prority:%d\n", tableid, row);
 	int i, j;
 	PNode hw_entry;
 	hw_entry = (PNode)malloc(sizeof(Entry_Node));
+    memset(hw_entry, 0, sizeof(Entry_Node));
+
+	if (tableid == 0) {
+		if (row == 0) {
+			hw_entry->flow_entry.flow_match.raw[0] = 0;
+			hw_entry->flow_entry.flow_mask.raw[0] = 0xffff0000;
+			hw_entry->flow_entry.flow_mask.raw[1] = 0xffffffff;
+			hw_entry->flow_entry.flow_mask.raw[2] = 0xffffffff;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[0] |= 0x01;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[1] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[2] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.forward_bitmask = 0x02;
+
+			for (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_DATA_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_match.raw[i]);
+			}
+			for (i = 0; i < NF2_OF_MASK_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_mask.raw[i]);
+			}
+			for (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_ACTION_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_action.raw[i]);
+			}
+            return 0;
+        }
+			
+		if (row == 1) {
+			hw_entry->flow_entry.flow_match.raw[0] = 2;
+			hw_entry->flow_entry.flow_mask.raw[0] = 0xffff0000;
+			hw_entry->flow_entry.flow_mask.raw[1] = 0xffffffff;
+			hw_entry->flow_entry.flow_mask.raw[2] = 0xffffffff;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[0] |= 0x01;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[1] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[2] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.forward_bitmask = 0x08;
+
+			for (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_DATA_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_match.raw[i]);
+			}
+			for (i = 0; i < NF2_OF_MASK_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_mask.raw[i]);
+			}
+			for (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_ACTION_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_action.raw[i]);
+			}
+            return 0;
+        }
+			
+		if (row == 2) {
+			hw_entry->flow_entry.flow_match.raw[0] = 4;
+			hw_entry->flow_entry.flow_mask.raw[0] = 0xffff0000;
+			hw_entry->flow_entry.flow_mask.raw[1] = 0xffffffff;
+			hw_entry->flow_entry.flow_mask.raw[2] = 0xffffffff;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[0] |= 0x01;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[1] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[2] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.forward_bitmask = 0x20;
+
+			for (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_DATA_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_match.raw[i]);
+			}
+			for (i = 0; i < NF2_OF_MASK_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_mask.raw[i]);
+			}
+			for (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_ACTION_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_action.raw[i]);
+			}
+            return 0;
+        }
+			
+		if (row == 3) {
+			hw_entry->flow_entry.flow_match.raw[0] = 6;
+			hw_entry->flow_entry.flow_mask.raw[0] = 0xffff0000;
+			hw_entry->flow_entry.flow_mask.raw[1] = 0xffffffff;
+			hw_entry->flow_entry.flow_mask.raw[2] = 0xffffffff;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[0] |= 0x01;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[1] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.nf2_action_flag[2] |= 0x00;
+			hw_entry->flow_entry.flow_action.action.forward_bitmask = 0x80;
+
+			for (i = 0; i < NF2_OF_ENTRY_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_DATA_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_match.raw[i]);
+			}
+			for (i = 0; i < NF2_OF_MASK_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_MASK_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_mask.raw[i]);
+			}
+			for (i = 0; i < NF2_OF_ACTION_WORD_LEN; ++i) {
+				wt((OPENFLOW_WILDCARD_LOOKUP_CMP_ACTION_REG | (tableid << 0x14) | (row << 0x08)) + (4 * i), hw_entry->flow_entry.flow_action.raw[i]);
+			}
+			return 0;
+		}
+    }
+
+    free(hw_entry);
+    return 0;
+}
+#endif
+
+#if 1
+int inport_to_dma(uint8_t tableid,int row)
+{
+	printf("add default entries to table :%d,prority:%d\n", tableid, row);
+	int i, j;
+	PNode hw_entry;
+	hw_entry = (PNode)malloc(sizeof(Entry_Node));
+    memset(hw_entry, 0, sizeof(Entry_Node));
 
 	if (tableid == 0) {
 		if (row == 0) {
@@ -242,6 +352,8 @@ int inport_to_dma(uint8_t tableid,int row)
 
 	return 0;
 }
+#endif
+
 int mod_meter (int meter_id, unsigned int kbps) {
 	clear_meter(meter_id);
 	unsigned int inc, interval;

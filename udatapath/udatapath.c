@@ -61,6 +61,7 @@
 #include "vconn-ssl.h"
 #include "vlog-socket.h"
 #include "../oflib/hw_table_define.h" 
+#include "../oflib/reg_defines_openflow_switch.h" 
 #if defined(OF_HW_PLAT)
 #include <openflow/of_hw_api.h>
 #endif
@@ -82,6 +83,8 @@ static void add_ports(struct datapath *dp, char *port_list);
 
 static bool use_multiple_connections = false;
 
+static void ons_dma_start() { wt(ONS_DMA_SWITCH_ADDR, 1); }
+
 hw_table_list *hw_table_list_t0;
 hw_table_list *hw_table_list_t1;
 hw_table_list *hw_table_list_t2;
@@ -99,17 +102,8 @@ hw_table_list *hw_table_list_t2;
 int
 main(int argc, char *argv[])
 {
-    /* meshsr add */
-    int m=0; 
-
-    m=inport_to_dma(0,0);
-    m=inport_to_dma(0,1);
-    m=inport_to_dma(0,2);
-    m=inport_to_dma(0,3);
-    m=inport_to_dma(2,0);
-    m=inport_to_dma(2,1);
-    m=inport_to_dma(2,2);
-    m=inport_to_dma(2,3);
+    printf("\nThis is ONetSwitch%2d, with hardware version: v%d.%d, tables: %d, size: %d\n", 
+        ONS_DEVICE_ID, ONS_HW_VERSION_MAJOR, ONS_HW_VERSION_MINOR, ONS_HW_TABLES, ONS_HW_TABLE_SIZE);
 
 	hw_table_list_t0 = (hw_table_list *)malloc(sizeof(hw_table_list));
     hw_table_list_init(hw_table_list_t0) ;
@@ -119,7 +113,6 @@ main(int argc, char *argv[])
     hw_table_list_init(hw_table_list_t2) ;
 
     return udatapath_cmd(argc, argv);
-    
 }
 #endif
 
@@ -195,6 +188,9 @@ udatapath_cmd(int argc, char *argv[])
 
     die_if_already_running();
     daemonize();
+
+    /* DMA must start first, then open the switch */
+    ons_dma_start();
 
     for (;;) {
         dp_run(dp);

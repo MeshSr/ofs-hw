@@ -140,7 +140,7 @@ pipeline_process_packet(struct pipeline *pl, struct packet *pkt) {
         return;
     }
 
-    next_table = pl->tables[3];
+    next_table = pl->tables[ONS_HW_TABLES];
     while (next_table != NULL) {
         struct flow_entry *entry;
 

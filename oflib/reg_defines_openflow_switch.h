@@ -1,4 +1,51 @@
-#define HW_TABLE_SIZE                                     16
+#ifndef REG_DEFINDS_OPENFLOW_SWITCH_H
+#define REG_DEFINDS_OPENFLOW_SWITCH_H  1
+
+#define ONS_DMA_SWITCH_ADDR     0x4b000000
+#define ONS_DEVICE_ID_ADDR      0x4b000004
+#define ONS_HW_TABLES_ADDR      0x4b00000c
+#define ONS_HW_VERSION_ADDR     0x4b000008
+#define ONS_HW_TABLE_SIZE_ADDR  0x4b000010
+
+static uint32_t ons_get_hw_table_size()
+{
+    uint32_t val;
+    rdReg(ONS_HW_TABLE_SIZE_ADDR, &val);
+
+    return val;
+}
+
+static uint32_t ons_get_hw_tables()
+{
+    uint32_t val;
+    rdReg(ONS_HW_TABLES_ADDR, &val);
+
+    return val;
+}
+
+static uint32_t ons_get_device_id()
+{
+    uint32_t val;
+    rdReg(ONS_DEVICE_ID_ADDR, &val);
+
+    return val;
+}
+
+static uint32_t ons_get_hw_version()
+{
+    uint32_t val;
+    rdReg(ONS_HW_VERSION_ADDR, &val);
+
+    return val;
+}
+
+#define ONS_DEVICE_ID       ons_get_device_id()
+#define ONS_HW_TABLES       ons_get_hw_tables()
+#define ONS_HW_TABLE_SIZE   ons_get_hw_table_size()
+#define ONS_HW_VERSION      ons_get_hw_version()
+#define ONS_HW_VERSION_MAJOR    ((ONS_HW_VERSION >> 8) & 0xf)
+#define ONS_HW_VERSION_MINOR    ONS_HW_VERSION & 0x0ff
+
 /*header parse*/
 #define OPENFLOW_WILDCARD_LOOKUP_CMP_FLAG_REG             0X48000050
 /* flow entry */
@@ -33,3 +80,4 @@
 #define QUEUE_DROP_PKT_COUNT_REG            0x4a000048
 #define QUEUE_DROP_BYTE_COUNT_REG           0x4a00004c
 
+#endif

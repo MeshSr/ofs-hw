@@ -117,25 +117,25 @@ flow_table_add(struct flow_table *table, struct ofl_msg_flow_mod *mod, bool chec
             /* NOTE: no flow removed message should be generated according to spec. */
 			if (mod->table_id == 0) {
 				i = hw_table_list_compare(hw_table_list_t0, hw_entry);		    
-				add_entry(mod->table_id, HW_TABLE_SIZE - i, hw_entry);
+				add_entry(mod->table_id, ONS_HW_TABLE_SIZE - i, hw_entry);
 				hw_table_list_replace(hw_table_list_t0, hw_entry, i);  
-				printf("replace entry ok! table_id:%d prio:%d\n", mod->table_id, HW_TABLE_SIZE - i);         
+				printf("replace entry ok! table_id:%d prio:%d\n", mod->table_id, ONS_HW_TABLE_SIZE - i);         
             }
 			if (mod->table_id == 1) {
 				i = hw_table_list_compare(hw_table_list_t1, hw_entry);		    
-				add_entry(mod->table_id, HW_TABLE_SIZE - i, hw_entry);
+				add_entry(mod->table_id, ONS_HW_TABLE_SIZE - i, hw_entry);
 				hw_table_list_replace(hw_table_list_t1, hw_entry, i);  
-				printf("replace entry ok! table_id:%d prio:%d\n", mod->table_id, HW_TABLE_SIZE - i);         
+				printf("replace entry ok! table_id:%d prio:%d\n", mod->table_id, ONS_HW_TABLE_SIZE - i);         
             }
 			if (mod->table_id == 2) {
 				i = hw_table_list_compare(hw_table_list_t2, hw_entry);		    
-				add_entry(mod->table_id, HW_TABLE_SIZE - i, hw_entry);
+				add_entry(mod->table_id, ONS_HW_TABLE_SIZE - i, hw_entry);
 				hw_table_list_replace(hw_table_list_t2, hw_entry, i);  
-				printf("replace entry ok! table_id:%d prio:%d\n", mod->table_id, HW_TABLE_SIZE - i);         
+				printf("replace entry ok! table_id:%d prio:%d\n", mod->table_id, ONS_HW_TABLE_SIZE - i);         
             }
 			/*reset the pkt count and byte count of the flow entry*/
 			if (mod->table_id < 3 && new_entry->no_pkt_count == 0) {
-				clear_entry_counter(mod->table_id, HW_TABLE_SIZE-i);
+				clear_entry_counter(mod->table_id, ONS_HW_TABLE_SIZE-i);
 			}
             list_replace(&new_entry->match_node, &entry->match_node);
             list_remove(&entry->hard_node);
@@ -158,45 +158,48 @@ flow_table_add(struct flow_table *table, struct ofl_msg_flow_mod *mod, bool chec
     new_entry = flow_entry_create(table->dp, table, mod);
     *match_kept = true;
     *insts_kept = true;
-	if (mod->table_id < 3 && mod->priority == 0)
-		return 0;
+
+    /* prio 0 is used for PKT-IN entry, don't write to hardware */
+    if (mod->table_id < ONS_HW_TABLES && mod->priority == 0)
+        return 0;
+
 	if (mod->table_id == 0) {
-		if (hw_table_list_t0->size == HW_TABLE_SIZE - 4)
+		if (hw_table_list_t0->size == ONS_HW_TABLE_SIZE - 4)
 			return ofl_error(OFPET_FLOW_MOD_FAILED, OFPFMFC_TABLE_FULL);
 		int i, num = hw_table_list_insert(hw_table_list_t0, hw_entry);
 		PNode cur = hw_table_list_t0->head;
 		for (i = 0; i < hw_table_list_t0->size; i++) {
 			if (i >= num - 1) {			
-				add_entry(mod->table_id, HW_TABLE_SIZE -i-1, cur);
-				printf("add entry ok! table_id:%d prio:%d\n", mod->table_id, HW_TABLE_SIZE-i-1);
+				add_entry(mod->table_id, ONS_HW_TABLE_SIZE -i-1, cur);
+				printf("add entry ok! table_id:%d prio:%d\n", mod->table_id, ONS_HW_TABLE_SIZE-i-1);
 			}
 			cur = cur->next;
 	    }
 	   
     }
 	if (mod->table_id == 1) {
-		if (hw_table_list_t1->size == HW_TABLE_SIZE)
+		if (hw_table_list_t1->size == ONS_HW_TABLE_SIZE)
 			return ofl_error(OFPET_FLOW_MOD_FAILED, OFPFMFC_TABLE_FULL);
 		int i, num = hw_table_list_insert(hw_table_list_t1, hw_entry);
 		PNode cur = hw_table_list_t1->head;
 		for (i = 0; i < hw_table_list_t1->size; i++) {
 			if (i >= num - 1) {			
-				add_entry(mod->table_id, HW_TABLE_SIZE-i-1, cur);
-				printf("add entry ok! table_id:%d prio:%d\n", mod->table_id, HW_TABLE_SIZE-i-1);
+				add_entry(mod->table_id, ONS_HW_TABLE_SIZE-i-1, cur);
+				printf("add entry ok! table_id:%d prio:%d\n", mod->table_id, ONS_HW_TABLE_SIZE-i-1);
 			}
 			cur = cur->next;
 	    }
 	   
     }
 	if (mod->table_id == 2) {
-		if (hw_table_list_t2->size == HW_TABLE_SIZE - 4)
+		if (hw_table_list_t2->size == ONS_HW_TABLE_SIZE - 4)
 			return ofl_error(OFPET_FLOW_MOD_FAILED, OFPFMFC_TABLE_FULL);
 		int i, num = hw_table_list_insert(hw_table_list_t2, hw_entry);
 		PNode cur = hw_table_list_t2->head;
 		for (i = 0; i < hw_table_list_t2->size; i++) {
 			if (i >= num - 1) {			
-				add_entry(mod->table_id, HW_TABLE_SIZE-i-1, cur);
-				printf("add entry ok! table_id:%d prio:%d\n", mod->table_id, HW_TABLE_SIZE-i-1);
+				add_entry(mod->table_id, ONS_HW_TABLE_SIZE-i-1, cur);
+				printf("add entry ok! table_id:%d prio:%d\n", mod->table_id, ONS_HW_TABLE_SIZE-i-1);
 			}
 			cur = cur->next;
 	    }
@@ -254,7 +257,7 @@ int mod_strict(hw_table_list *hw_table_list, struct ofl_msg_flow_mod *mod)
 			&& judge_mask(cur, hw_entry) 
 			&& judge_entry_strict(cur, hw_entry)) {
 			memcpy(&cur->flow_entry.flow_action,&hw_entry->flow_entry.flow_action,sizeof(hw_flow_action));
-			mod_entry(mod->table_id,HW_TABLE_SIZE-position-1,hw_entry);
+			mod_entry(mod->table_id, ONS_HW_TABLE_SIZE-position-1, hw_entry);
 			return 0;
 		}		
 		position++;
@@ -269,7 +272,7 @@ int mod_no_strict(hw_table_list *hw_table_list, struct ofl_msg_flow_mod *mod)
 	while (cur) {
 		if (judge_mask(cur, hw_entry) && judge_entry(cur, hw_entry)) {
 			memcpy(&cur->flow_entry.flow_action,&hw_entry->flow_entry.flow_action,sizeof(hw_flow_action));
-			mod_entry(mod->table_id,HW_TABLE_SIZE-position-1,hw_entry);
+			mod_entry(mod->table_id, ONS_HW_TABLE_SIZE-position-1, hw_entry);
 		}		
 		position++;
 		cur = cur->next;
@@ -343,15 +346,15 @@ int delete_strict( hw_table_list *hw_table_list, struct ofl_msg_flow_mod *mod)
 	cur = hw_table_list->head;
 	for (i = 0 ;i<hw_table_list->size; i++) {
 		if (i >= position && flag == 1) {
-			add_entry(mod->table_id, HW_TABLE_SIZE-i-1, cur);
-			printf("move entry ok! prio:%d\n", HW_TABLE_SIZE-i-1);
-			clear_entry_counter(mod->table_id, HW_TABLE_SIZE-i-1);
+			add_entry(mod->table_id, ONS_HW_TABLE_SIZE-i-1, cur);
+			printf("move entry ok! prio:%d\n", ONS_HW_TABLE_SIZE-i-1);
+			clear_entry_counter(mod->table_id, ONS_HW_TABLE_SIZE-i-1);
 		}
 		cur = cur->next;
 	}	
 	for(i = hw_table_list->size; i < hw_table_list->size + del_num; i++) {		
-		del_entry(mod->table_id, HW_TABLE_SIZE-i-1);
-		printf("del_num:%d,del entry ok! prio:%d\n", del_num, HW_TABLE_SIZE-i-1);
+		del_entry(mod->table_id, ONS_HW_TABLE_SIZE-i-1);
+		printf("del_num:%d,del entry ok! prio:%d\n", del_num, ONS_HW_TABLE_SIZE-i-1);
 	}
 	
 	
@@ -423,13 +426,13 @@ int delete_no_strict( hw_table_list *hw_table_list, struct ofl_msg_flow_mod *mod
 	cur = hw_table_list->head;
 	for (i = 0 ;i<hw_table_list->size; i++) {
 		if (i >= position && flag == 1) {
-			add_entry(mod->table_id, HW_TABLE_SIZE-i-1, cur);
-			clear_entry_counter(mod->table_id, HW_TABLE_SIZE-i-1);
+			add_entry(mod->table_id, ONS_HW_TABLE_SIZE-i-1, cur);
+			clear_entry_counter(mod->table_id, ONS_HW_TABLE_SIZE-i-1);
 		}
 		cur = cur->next;
 	}	
 	for(i = hw_table_list->size; i < hw_table_list->size + del_num; i++) {		
-		del_entry(mod->table_id, HW_TABLE_SIZE-i-1);
+		del_entry(mod->table_id, ONS_HW_TABLE_SIZE-i-1);
 	}
 
 	return 0;
@@ -441,12 +444,12 @@ void delete_match_null(hw_table_list *hw_table_list, struct ofl_msg_flow_mod *mo
 	int num = hw_table_list->size;
 	for (i = 0; i < num; i++) {
 		if(hw_table_list->size == 1) {
-			del_entry(mod->table_id, HW_TABLE_SIZE-i-1);
+			del_entry(mod->table_id, ONS_HW_TABLE_SIZE-i-1);
 			PNode cur = hw_table_list->head;			
 			free(cur);	
 		}
 		else {
-			del_entry(mod->table_id, HW_TABLE_SIZE-i-1);		
+			del_entry(mod->table_id, ONS_HW_TABLE_SIZE-i-1);		
 			PNode cur = hw_table_list->head;
 			hw_table_list->head = hw_table_list->head->next;
 			hw_table_list->head->prev = NULL;
@@ -768,7 +771,7 @@ flow_table_stats(struct flow_table *table, struct ofl_msg_multipart_request_flow
             }
 		
 			if (table->stats->table_id < 3) {
-				int row = HW_TABLE_SIZE - *stats_num - 1;
+				int row = ONS_HW_TABLE_SIZE - *stats_num - 1;
 		        int byte_count = 0, pkt_count = 0; 
 				
 		        rdReg(OPENFLOW_WILDCARD_LOOKUP_BYTES_HIT_REG|(table->stats->table_id << 0x14)|(row << 0x08), &byte_count);
