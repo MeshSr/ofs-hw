@@ -80,9 +80,9 @@ static void
 ofl_msg_print_features_reply(struct ofl_msg_features_reply *msg, FILE *stream) {
 
     fprintf(stream, "{dpid=\"0x%016"PRIx64"\", buffs=\"%u\", tabs=\"%u\", "
-                          "aux_id=\"%u\", caps=\"0x%"PRIx32"\"",
+                          "aux_id=\"%u\", caps=\"0x%"PRIx32"\", reserved=\"0x%"PRIx32"\"",
                   msg->datapath_id, msg->n_buffers, msg->n_tables,
-                  msg->auxiliary_id, msg->capabilities);
+                  msg->auxiliary_id, msg->capabilities, msg->reserved);
 
     fprintf(stream, "]}");
 }

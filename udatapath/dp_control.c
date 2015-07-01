@@ -42,6 +42,7 @@
 #include "oflib/ofl.h"
 #include "oflib/ofl-messages.h"
 #include "oflib/ofl-log.h"
+#include "oflib/reg_defines_openflow_switch.h"
 #include "openflow/openflow.h"
 
 #include "vlog.h"
@@ -87,6 +88,15 @@ static ofl_err
 handle_control_features_request(struct datapath *dp,
           struct ofl_msg_header *msg, const struct sender *sender) {
 
+    /* reserved:
+     * this varible is used to pass device id(ons20/30/45), 
+     * hardware tables, and table size to the controller
+     * bit31~24: reserved
+     * bit23~16: device id
+     * bit15~08: hardware tables
+     * bit07~00: hardware table size
+     */
+    uint32_t reserved = (ONS_DEVICE_ID << 16) | (ONS_HW_TABLES << 8) | ONS_HW_TABLE_SIZE;
     struct ofl_msg_features_reply reply =
             {{.type = OFPT_FEATURES_REPLY},
              .datapath_id  = dp->id,
@@ -94,7 +104,7 @@ handle_control_features_request(struct datapath *dp,
              .n_tables     = PIPELINE_TABLES,
              .auxiliary_id = sender->conn_id,
              .capabilities = DP_SUPPORTED_CAPABILITIES,
-             .reserved = 0x00000000};
+             .reserved = reserved};
 
     dp_send_message(dp, (struct ofl_msg_header *)&reply, sender);
 

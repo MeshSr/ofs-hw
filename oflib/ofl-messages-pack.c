@@ -107,7 +107,7 @@ ofl_msg_pack_features_reply(struct ofl_msg_features_reply *msg, uint8_t **buf, s
     features->auxiliary_id = msg->auxiliary_id;
     memset(features->pad, 0x00, 2);
     features->capabilities = htonl( msg->capabilities);
-    features->reserved = 0x00000000;
+    features->reserved = htonl(msg->reserved);
 
     return 0;
 }

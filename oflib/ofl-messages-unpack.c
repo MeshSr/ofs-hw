@@ -148,6 +148,7 @@ ofl_msg_unpack_features_reply(struct ofp_header *src, size_t *len, struct ofl_ms
     dr->n_tables     =  sr->n_tables;
     dr->auxiliary_id = sr->auxiliary_id;
     dr->capabilities = ntohl( sr->capabilities);
+    dr->reserved = ntohl( sr->reserved);
     
     *msg = (struct ofl_msg_header *)dr;
     return 0;
